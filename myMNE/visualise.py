@@ -262,8 +262,9 @@ def plot3dBox(x_range,y_range,z_range,fig=None,*args,**kwargs):
 
     return fig
 
-def plot3dArrow(point1,n,fig=None,*args, **kwargs):
-    fig,ax = get3dAx(fig)
+def plot3dArrow(point1,n,fig=None,ax:plt.Axes=None,*args, **kwargs):
+    if not ax:
+        fig,ax = get3dAx(fig)
     x,y,z = point1
     u,v,w = n
     ax.quiver(x,y,z,u,v,w,*args, **kwargs)
@@ -277,6 +278,72 @@ def plot3dArrows(points,ns,fig=None,*args,**kwargs):
         n = ns[i]
         fig = plot3dArrow(point,n,fig,*args, **kwargs)
     return fig
+
+def draw_arrow(ax:plt.Axes, arrowBottom:np.ndarray, arrowTip:np.ndarray, 
+               arrowBottomRadius=0.05, arrowTipRadius=0.1, 
+               arrowBottomLength=0.5, arrowTipLength=0.1,color="red"):
+    """
+    绘制一个3D箭头，箭头由圆柱和圆锥组成。
+    思路：先绘制一个标准的在 z 轴上的箭头，然后旋转，然后平移，得到箭头表面所有点的坐标，然后 plot surface
+    """
+    surfaces = []
+    # Step 1 先得到标准的箭头
+    n_theta = 20
+    n_r = 6
+    n_z = 6
+    # 1-1 圆柱底面坐标
+    theta = np.linspace(0, 2*np.pi, n_theta)
+    r = np.linspace(0,arrowBottomRadius,n_r)
+    Theta,R = np.meshgrid(theta,r)
+    X = R*np.cos(Theta)
+    Y = R*np.sin(Theta)
+    Z = np.zeros_like(X)
+    surfaces.append((X,Y,Z))
+    
+    # 1-2 圆柱侧面坐标
+    theta = np.linspace(0,2*np.pi,n_theta)
+    z = np.linspace(0,arrowBottomLength,n_z)
+    Theta,Z = np.meshgrid(theta,z)
+    X = arrowBottomRadius*np.cos(Theta)
+    Y = arrowBottomRadius*np.sin(Theta)
+    surfaces.append((X,Y,Z))
+    
+    # 1-3 圆锥底面坐标
+    theta = np.linspace(0, 2*np.pi, n_theta)
+    r = np.linspace(0,arrowTipRadius,n_r)
+    Theta,R = np.meshgrid(theta,r)
+    X = R*np.cos(Theta)
+    Y = R*np.sin(Theta)
+    Z = np.zeros_like(X) + arrowBottomLength
+    surfaces.append((X,Y,Z))
+    
+    # 1-4 圆锥侧面坐标
+    theta = np.linspace(0,2*np.pi,n_theta)
+    z = np.linspace(0,arrowTipLength,n_z)
+    Theta,Z = np.meshgrid(theta,z)
+    X = arrowTipRadius*(arrowTipLength-Z)/arrowTipLength*np.cos(Theta)
+    Y = arrowTipRadius*(arrowTipLength-Z)/arrowTipLength*np.sin(Theta)
+    Z += + arrowBottomLength
+    surfaces.append((X,Y,Z))
+
+    # ax.plot_surface(X,Y,Z) # 测试用
+        
+    # Step 2 变换坐标
+    n = arrowTip - arrowBottom # 箭头的方向
+    n = n/np.linalg.norm(n)
+    M = rotationMatrixFromNToM(unit_z,n)    
+    newSurfaces = []
+    for surface in surfaces:
+        X,Y,Z = np.einsum("ij,jkl->ikl",M,surface)
+        X += arrowBottom[0]
+        Y += arrowBottom[1]
+        Z += arrowBottom[2]
+        newSurfaces.append([X,Y,Z])
+
+    #  Step 3 绘制
+    for X,Y,Z in newSurfaces:
+        ax.plot_surface(X,Y,Z,color=color,shade=False)
+        pass
 
 def plot3dSegment(point1,point2,fig=None,*args, **kwargs):
     fig,ax = get3dAx(fig)

@@ -770,6 +770,36 @@ class Visualizer:
 
         return fig
 
+    def getAxis(self,dim=3):
+        '''获得3d'''
+        if dim==2:
+            return vs.get2dAx()
+        else:
+            return vs.get3dAx()
+
+    def showSource(self,rp:np.ndarray,p:np.ndarray,ax:vs.plt.Axes,dim=3, 
+        arrowBottomRadius=0.05, arrowTipRadius=0.1, 
+        arrowBottomLength=0.5, arrowTipLength=0.1,
+        **kwargs):
+        '''在源所在位置绘制一个箭头。'''
+        n = p/np.linalg.norm(p) # 箭头的方向
+        if dim == 2:
+            return
+        if dim == 3:
+            arrowBottom = rp
+            arrowTip = rp + n*0.1
+            vs.draw_arrow(ax,arrowBottom,arrowTip,arrowBottomRadius,arrowTipRadius,arrowBottomLength,arrowTipLength)
+            # vs.plot3dArrow(rp,n,None,ax)
+
+    def showHead(self,headRadius:float,dim=3,ax:vs.plt.Axes=None):
+        if dim == 3:
+            vs.plotSphere(origin,headRadius,ax=ax,color="oldlace",alpha=0.05)
+
+    def setAxis(self,ax:vs.plt.Axes,dim=3):
+        if dim==3:
+            ax.set_xlabel("x (m)")
+            ax.set_ylabel("y (m)")
+            ax.set_zlabel("z (m)")
 
 class VarContraller:
     def __init__(self,variableName,variableValues,variableFunc,baseParas:Paras,refreshMode=1):

@@ -76,7 +76,7 @@ p = np.array([0,100e-9,0])
 paras.gridSpacing = 0.3e-2
 paras.fixDipole = (rp,p)
 paras2v,paras2s,paras3v,paras3s = paras.childParas(numOfChannelsForDim2=15,
-                                numOfChannelsForDim3=64)
+                                numOfChannelsForDim3=128)
 
 paras3v.theta = 0
 
@@ -85,6 +85,14 @@ paras3s.GeoFieldAtRef = 5e-5*(unit_x*np.sin(paras3s.theta)+unit_z*np.cos(paras3s
 
 
 for par in [paras3v,paras3s]:
+    vz = Visualizer()
+    fig,ax = vz.getAxis(par.dim)
+    
+    rp,p = par.fixDipole
+    vz.setAxis(ax,par.dim)
+    vz.showHead(par.radiusOfHead,par.dim,ax)
+    vz.showSource(rp,p,ax,par.dim,arrowBottomRadius=0.002,arrowTipRadius=0.005,arrowBottomLength=0.02,arrowTipLength=0.01)
+    
     sol = Solver(par)
     xv, yv, theoBm = sol.getTheoBm(rp,p,50)
     zv = np.sqrt(par.radiusOfSensorShell**2-xv**2-yv**2)
@@ -92,51 +100,9 @@ for par in [paras3v,paras3s]:
 
     trial = sol.singleTrial()
     
-    fig = vs.plt.figure()
-    fig, ax = vs.get3dAx(fig)
-    
     vz = Visualizer()
     vz.showQ(sol,trial.Q,ax)
     # trial.Q
     Bm = trial.Bm
-    
 
-
-
-for j in range(2):
-    rp = rps[j]
-
-    for i,sigma in enumerate(tqdm.tqdm(sigmas,desc=f"source {j}",unit="it")):
-        new_paras = deepcopy(paras)
-        new_paras.fixDipole = (rp,p)
-
-        BmV,rsV,widthV = getMoment(paras3v,sigma)
-        BmS,rsS,widthS = getMoment(paras3s,sigma)
-
-        widthVs[j,i] = widthV
-        widthSs[j,i] = widthS
-
-# print(f"width-V = {widthVs[0,:]*1e2}")
-# print(f"width-S = {widthSs[0,:]*1e2}")
-
-# np.savetxt(os.path.join(saveFolder,"fig6c-3v.csv"),widthVs,delimiter=",")
-# np.savetxt(os.path.join(saveFolder,"fig6c-3s.csv"),widthSs,delimiter=",")
-
-# widthVs = np.loadtxt("data/fig6c-3v.csv",delimiter=",")
-# widthSs = np.loadtxt("data/fig6c-3s.csv",delimiter=",")
-xs = np.linspace(0,200,11)
-
-for j in range(2):
-    fig = vs.plt.figure(figsize=(3.5,2.7))
-    vs.plt.plot(xs,widthVs[j,:]*1e2,marker="s",markersize=0.1/2.54*72,linewidth=1)
-    vs.plt.plot(xs,widthSs[j,:]*1e2,marker="o",markersize=0.1/2.54*72,linewidth=1)
-    vs.plt.xticks([])
-    vs.plt.yticks([])
-    vs.plt.xlim([-30,230])
-    vs.plt.ylim([4,8])
-    vs.plt.axis("off")
-    vs.plt.tight_layout()
-    # vs.plt.savefig(f"figs/fig6c-source{j+1}.svg",format='svg', bbox_inches='tight')
-
-vs.plt.show()
 print("Done.")
