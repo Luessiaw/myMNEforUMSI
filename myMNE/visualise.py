@@ -11,6 +11,9 @@ from matplotlib import colors
 
 import numpy as np
 from .mathTools import *
+# from scipy.spatial import Delaunay # 三角化网格
+# import stripy
+import matplotlib.tri as tri
 
 # plt.rcParams['text.usetex'] = True # 支持 latex
 # plt.rcParams['font.family'] = ["Times New Roman","serif"]
@@ -281,16 +284,14 @@ def plot3dArrows(points,ns,fig=None,*args,**kwargs):
 
 def draw_arrow(ax:plt.Axes, arrowBottom:np.ndarray, arrowTip:np.ndarray, 
                arrowBottomRadius=0.05, arrowTipRadius=0.1, 
-               arrowBottomLength=0.5, arrowTipLength=0.1,color="red"):
+               arrowBottomLength=0.5, arrowTipLength=0.1,color="red",
+               n_theta=20,n_r=6,n_z=6):
     """
     绘制一个3D箭头，箭头由圆柱和圆锥组成。
     思路：先绘制一个标准的在 z 轴上的箭头，然后旋转，然后平移，得到箭头表面所有点的坐标，然后 plot surface
     """
     surfaces = []
     # Step 1 先得到标准的箭头
-    n_theta = 20
-    n_r = 6
-    n_z = 6
     # 1-1 圆柱底面坐标
     theta = np.linspace(0, 2*np.pi, n_theta)
     r = np.linspace(0,arrowBottomRadius,n_r)
@@ -366,6 +367,21 @@ def plot_surface(x,y,z,u,fig=None,*args, **kwargs):
     # plt.colorbar(surf, shrink=0.5, aspect=5)  # 添加颜色映射条
     ax.plot_surface(x,y,z, rstride=1, cstride=1, facecolors=fcolors, vmin=minn, vmax=maxx, shade=False,*args, **kwargs)
     return fig
+
+def plot_tri_surface(ax:plt.Axes,points:np.ndarray,f:np.ndarray):
+    '''要求 points 的格式： [[x,y,z],...]'''
+    triang = tri.Triangulation(points[:,0],points[:,1])
+    # 绘制球面三角形网格曲面
+    norm = plt.Normalize(vmin=f.min(), vmax=f.max())  # 归一化到 [0,1]
+    cmap = cm.rainbow  # 选择颜色映射（如 'viridis', 'jet', 'plasma'）
+    surf = ax.plot_trisurf(triang,Z=points[:, 2],  
+                           vmin=f.min(),vmax=f.max())
+    surf.set_array(f)
+    # surf.set_array(norm(f))
+    # 根据 Bv 的值进行着色
+    # surf.set_array(fv_triangle)
+    
+    return surf
 
 def read_matrix_from_txt(filename:str):
     '''从文件中读取模拟结果'''

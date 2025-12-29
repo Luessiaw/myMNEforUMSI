@@ -73,7 +73,7 @@ rp = np.array([np.cos(rp_theta),0,np.sin(rp_theta)])*8e-2
 p = np.array([0,100e-9,0])
 # sources = [(rp1,p),(rp2,p)]
 
-paras.gridSpacing = 0.3e-2
+paras.gridSpacing = 0.8e-2
 paras.fixDipole = (rp,p)
 paras2v,paras2s,paras3v,paras3s = paras.childParas(numOfChannelsForDim2=15,
                                 numOfChannelsForDim3=128)
@@ -86,23 +86,45 @@ paras3s.GeoFieldAtRef = 5e-5*(unit_x*np.sin(paras3s.theta)+unit_z*np.cos(paras3s
 
 for par in [paras3v,paras3s]:
     vz = Visualizer()
+    # fig,ax = vz.getAxis(par.dim)
+    
+    # rp,p = par.fixDipole
+    # vz.showHead(par.radiusOfHead,par.dim,ax)
+    # vz.showSource(rp,p,ax,par.dim,arrowBottomRadius=0.002,arrowTipRadius=0.005,arrowBottomLength=0.02,arrowTipLength=0.01)
+    # vz.showAxisArrow(ax,0.11,0.11,0.11,bottomRadius=0.0005,tipRadius=0.002,
+    #                  xTipLength=0.01,yTipLength=0.01,zTipLength=0.01)
+    # ax.set_aspect("equal")
+    # ax.set_axis_off()
+    # vs.plt.tight_layout()
+    # fig.savefig(f"figs/腐化/source-{par.getLabel()}.png",dpi=300)
+
     fig,ax = vz.getAxis(par.dim)
-    
-    rp,p = par.fixDipole
-    vz.setAxis(ax,par.dim)
-    vz.showHead(par.radiusOfHead,par.dim,ax)
-    vz.showSource(rp,p,ax,par.dim,arrowBottomRadius=0.002,arrowTipRadius=0.005,arrowBottomLength=0.02,arrowTipLength=0.01)
-    
     sol = Solver(par)
-    xv, yv, theoBm = sol.getTheoBm(rp,p,50)
-    zv = np.sqrt(par.radiusOfSensorShell**2-xv**2-yv**2)
-
-
-    trial = sol.singleTrial()
+    xv,yv,zv, Bm = sol.getTheoBmGrid(rp,p,100)
+    norm = vs.plt.Normalize(vmin=Bm.min(), vmax=Bm.max())  # 归一化到 [0,1]
+    cmap = vs.cm.rainbow  # 选择颜色映射（如 'viridis', 'jet', 'plasma'）
+    colors = cmap(norm(Bm))  
     
-    vz = Visualizer()
-    vz.showQ(sol,trial.Q,ax)
-    # trial.Q
-    Bm = trial.Bm
+    Bmmin = np.nanmin(Bm)
+    Bmmax = np.nanmax(Bm)
+    normBm = (Bm-Bmmin)/(Bmmax-Bmmin)
+    surf = ax.plot_surface(xv, yv, zv, facecolors=vs.plt.cm.viridis(normBm), rstride=1, cstride=1, alpha=1, cmap='viridis')    # ax.plot_surface(xv,yv,zv,  vmin=Bm.min(), vmax=Bm.max(), shade=False)
+    
+    
+    # points = np.array(points)
+    # ax.scatter(points[:,0],points[:,1],points[:,2])
+    
+
+#     surf = ax.plot_surface(xv, yv, zv, facecolors=colors,edgecolor="none",alpha=0.5)
+
+# # 添加颜色条
+#     fig.colorbar(surf, shrink=0.5, aspect=5)
+    vs.plt.show()
+    # trial = sol.singleTrial()
+    
+    # vz = Visualizer()
+    # vz.showQ(sol,trial.Q,ax)
+    # # trial.Q
+    # Bm = trial.Bm
 
 print("Done.")

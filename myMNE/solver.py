@@ -437,6 +437,58 @@ class Solver:
 
             return xv,yv,B
 
+    def getTheoBmFibonacci(self,rp:np.ndarray,p:np.ndarray,num=500):
+        '''在上半球面取 Fibonacci 点，绘制测量值。'''
+        if self.paras.dim == 2:
+            return
+        points = fibonacci_sphere(num*2)
+        points = points[:num]
+        points = [p*self.paras.radiusOfSensorShell for p in points]
+        pv = np.vstack(points).transpose()
+
+        e1,e2,e3 = getSphericalUnitVector(rp)
+        Q = np.array([np.dot(p,e2),np.dot(p,e3)])
+
+        oris = self.getSensorOri(pv,realGeoFields=True)
+        L = self.getLeadField(rp.reshape((3,1)),sensorPoints=pv,sensorOris=oris)
+        Bm = np.dot(L,Q)
+        
+        return points, Bm
+
+    def getTheoBmGrid(self,rp:np.ndarray,p:np.ndarray,num=20):
+        rS = self.paras.radiusOfSensorShell
+        x = np.linspace(-rS,rS,num)
+        y = np.linspace(-rS,rS,num)
+        xv, yv = np.meshgrid(x,y)
+        zv = np.sqrt(rS**2-xv**2-yv**2)
+
+        points = np.stack((xv, yv, zv), axis=-1)
+        points = points.reshape(-1, 3).transpose()
+        mask = np.einsum("ij,ij->j",points,points) < rS**2
+        points = points[:,mask]
+        B = np.zeros((num,num))
+
+        for i in range(num):
+            for j in range(num):
+                r = np.array([xv[i,j],yv[i,j],zv[i,j]])
+                R = r - rp
+                nr = np.linalg.norm(r)
+                nR = np.linalg.norm(R)
+                F = nR*(nr*nR+np.vdot(r,R))
+                nablaF = (nR**2/nr+nR)*r + (np.vdot(r,R)/nR+nR+2*nr)*R
+                q = np.cross(p,rp)
+
+                if self.paras.sensorType == "scalar":
+                    Bgeo = self.paras.GeoFieldAtRef + np.dot(self.paras.GeoFieldGradientTensor,r)
+                    nSensor = Bgeo/np.linalg.norm(Bgeo)
+                elif self.paras.sensorType == "vector":
+                    nSensor = r/np.linalg.norm(r)
+
+                Bi = k0*(q/F-np.vdot(q,r)*nablaF/F**2)
+                Bij = np.vdot(nSensor,Bi)
+                B[i,j] = Bij
+        return xv,yv,zv,B
+
     def leadFunc(self,r:np.ndarray,rp:np.ndarray):
         '''r_p:源点。r:场点'''
         R = r - rp
@@ -795,11 +847,26 @@ class Visualizer:
         if dim == 3:
             vs.plotSphere(origin,headRadius,ax=ax,color="oldlace",alpha=0.05)
 
-    def setAxis(self,ax:vs.plt.Axes,dim=3):
+    def setAxis(self,ax:vs.plt.Axes,dim=3,xlabel="",ylabel="",zlabel=""):
         if dim==3:
-            ax.set_xlabel("x (m)")
-            ax.set_ylabel("y (m)")
-            ax.set_zlabel("z (m)")
+            if xlabel:
+                ax.set_xlabel("x (m)")
+            if ylabel:
+                ax.set_ylabel("y (m)")
+            if zlabel:
+                ax.set_zlabel("z (m)")
+
+    def showAxisArrow(self,ax:vs.plt.Axes,
+                      xlength=1,ylength=1,zlength=1,
+                      xcolor="gray",ycolor="gray",zcolor="gray",
+                      bottomRadius=0.01,tipRadius=0.02,
+                      xTipLength=0.05,yTipLength=0.05,zTipLength=0.05):
+        if xlength:
+            vs.draw_arrow(ax,origin,np.array([xlength,0,0]),arrowBottomRadius=bottomRadius,arrowTipRadius=tipRadius,color=xcolor,arrowBottomLength=xlength,arrowTipLength=xTipLength)
+        if ylength:
+            vs.draw_arrow(ax,origin,np.array([0,ylength,0]),arrowBottomRadius=bottomRadius,arrowTipRadius=tipRadius,color=ycolor,arrowBottomLength=ylength,arrowTipLength=yTipLength)
+        if zlength:
+            vs.draw_arrow(ax,origin,np.array([0,0,zlength]),arrowBottomRadius=bottomRadius,arrowTipRadius=tipRadius,color=zcolor,arrowBottomLength=zlength,arrowTipLength=zTipLength)
 
 class VarContraller:
     def __init__(self,variableName,variableValues,variableFunc,baseParas:Paras,refreshMode=1):
