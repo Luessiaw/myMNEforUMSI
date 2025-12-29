@@ -13,7 +13,7 @@ import numpy as np
 from .mathTools import *
 # from scipy.spatial import Delaunay # 三角化网格
 # import stripy
-import matplotlib.tri as tri
+import matplotlib.tri as mtri
 
 # plt.rcParams['text.usetex'] = True # 支持 latex
 # plt.rcParams['font.family'] = ["Times New Roman","serif"]
@@ -368,21 +368,6 @@ def plot_surface(x,y,z,u,fig=None,*args, **kwargs):
     ax.plot_surface(x,y,z, rstride=1, cstride=1, facecolors=fcolors, vmin=minn, vmax=maxx, shade=False,*args, **kwargs)
     return fig
 
-def plot_tri_surface(ax:plt.Axes,points:np.ndarray,f:np.ndarray):
-    '''要求 points 的格式： [[x,y,z],...]'''
-    triang = tri.Triangulation(points[:,0],points[:,1])
-    # 绘制球面三角形网格曲面
-    norm = plt.Normalize(vmin=f.min(), vmax=f.max())  # 归一化到 [0,1]
-    cmap = cm.rainbow  # 选择颜色映射（如 'viridis', 'jet', 'plasma'）
-    surf = ax.plot_trisurf(triang,Z=points[:, 2],  
-                           vmin=f.min(),vmax=f.max())
-    surf.set_array(f)
-    # surf.set_array(norm(f))
-    # 根据 Bv 的值进行着色
-    # surf.set_array(fv_triangle)
-    
-    return surf
-
 def read_matrix_from_txt(filename:str):
     '''从文件中读取模拟结果'''
     # 读取文件
@@ -443,3 +428,59 @@ def showGridPositionAndIndex(gridPoints:list[np.ndarray],fig=None,ax=None,dim=2,
         fig = plot2dScatter(xs,ys,values=values,*args, **kwargs,fig=fig,ax=ax)
     return fig
 
+
+def plotFunctionOnSphere(ax:plt.Axes,f,radius:float,vmin:float,vmax:float,num=400):
+    '''在球面上绘制函数值。'''
+    fb_points = np.array(fibonacci_sphere(num*2)[:num])
+    xs = fb_points[:,0]
+    ys = fb_points[:,1]
+    zs = fb_points[:,2]
+        
+    triangle_surfaces = [] # 形如 [[(1,0.1,1),(...),(...)],[...]]
+    triangulation = mtri.Triangulation(xs,ys)
+    # Fibonacci 螺旋线构成的面
+    for k,triangle in enumerate(triangulation.triangles):
+        verts = []
+        for i in range(3):
+            x = xs[triangle[i]]
+            y = ys[triangle[i]]
+            z = zs[triangle[i]]
+            verts.append(np.array([x,y,z]))
+        triangle_surfaces.append(verts)
+
+    # 下方锯齿
+    boundPoints = np.array(convex_hull(np.array(list(zip(xs,ys)))))
+    xu,yu = boundPoints.transpose()
+    zu = np.sqrt(1-xu**2-yu**2)
+    pu = np.stack([xu,yu,zu]).transpose()
+    pu = np.vstack([pu,pu[0]])
+
+    theta = np.arctan2(pu[:,1],pu[:,0])
+    xd = np.cos(theta)
+    yd = np.sin(theta)
+    zd = np.zeros_like(xd)
+    pd = np.stack([xd,yd,zd]).transpose()
+
+    for i in range(xu.size):
+        p1u = pu[i]
+        p2u = pu[i+1]
+        p1d = pd[i]
+        p2d = pd[i+1]
+        triangle_surfaces.append([p1u,p1d,p2d])
+        triangle_surfaces.append([p1u,p2u,p2d])
+
+    triangle_surfaces = np.array(triangle_surfaces)*radius
+
+    cmap = plt.get_cmap('viridis')
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    colors = [] # 三角面的中心点的归一化后的函数值决定颜色
+    for verts in triangle_surfaces:
+        p = np.mean(verts,axis=0)
+        rgba = cmap(norm(f(p)))
+        colors.append(rgba)
+
+    # colors = 1- np.array(colors)[:,:3]
+    for k,verts in enumerate(triangle_surfaces):
+        collection = Poly3DCollection([verts,],
+                                      facecolor=colors[k])
+        ax.add_collection3d(collection)
