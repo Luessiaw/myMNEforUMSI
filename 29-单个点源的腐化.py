@@ -65,7 +65,7 @@ def getMoment(p:Paras,sigma:float):
     return Bm,rs,width
 
 rp_theta = 30/180*np.pi
-rp = np.array([np.cos(rp_theta),0,np.sin(rp_theta)])*8e-2
+rp = np.array([np.sin(rp_theta),0,np.cos(rp_theta)])*8e-2
 
 # rp1 = np.array([0,0,8e-2])
 # rp2 = np.array([0,0,7e-2])
@@ -73,7 +73,9 @@ rp = np.array([np.cos(rp_theta),0,np.sin(rp_theta)])*8e-2
 p = np.array([0,100e-9,0])
 # sources = [(rp1,p),(rp2,p)]
 
-paras.gridSpacing = 0.3e-2
+paras.gridSpacing = 0.8e-2
+# paras.radiusOfBrainShell = [8e-2,9e-2]
+paras.sourceOnSpheres = (np.linspace(7,9,5,endpoint=True)*1e-2).tolist()
 paras.fixDipole = (rp,p)
 paras2v,paras2s,paras3v,paras3s = paras.childParas(numOfChannelsForDim2=15,
                                 numOfChannelsForDim3=128)
@@ -107,9 +109,9 @@ for par in [paras3v,paras3s]:
     # 绘制源定位结果
     sol = Solver(par)
     trial = sol.singleTrial()
-    vz.showImagingResult(sol,trial.Q,ax,2)
+    vz.showImagingResult(sol,trial.Q,ax,10,vmin=1.5e-22)
     vz.showHead(par.radiusOfHead,par.dim,ax)
-    png_name = f"figs/腐化/result-{par.getLabel()}-30-2.png"
+    png_name = f"figs/腐化/result-{par.getLabel()}-4-5l.png"
 
     vz.setAxis(ax,3,radius=0.13)
     ax.set_axis_off()

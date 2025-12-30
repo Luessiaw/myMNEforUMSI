@@ -32,6 +32,8 @@ class Paras:
         self.dim = 2
         self.radiusOfHead = 10e-2
         self.radiusOfBrain = 9e-2 # 大脑半径
+        self.radiusOfBrainShell = [] # 大脑球壳半径
+        self.sourceOnSpheres = [] # 源位于几个球面上，元素为球面半径
         self.gridSpacing = 1e-2
         # 源。如果出于调试等目的需要指定某个源，请在 runTrail 的部分修改。
         self.dipoleStrength = 10e-9 # 偶极子强度
@@ -176,19 +178,32 @@ class Solver:
         self.trials = self.Trials(self.paras.numOfTrials,self.paras.numOfChannels)
 
     def getSourcePoints(self):
-        rB = self.paras.radiusOfBrain
         if self.paras.dim == 3:
-            num = int(2*rB/self.paras.gridSpacing)
-            x = np.linspace(-rB,rB,num,dtype=np.float32)
-            y = np.linspace(-rB,rB,num,dtype=np.float32)
-            z = np.linspace(-rB,rB,num,dtype=np.float32)
+            if self.paras.sourceOnSpheres:
+                points = []
+                for radius in self.paras.sourceOnSpheres:
+                    M = int(4*np.pi*radius**2/self.paras.gridSpacing**2)
+                    points1 = np.array(fibonacci_sphere(M)).transpose()*radius
+                    points.append(points1)
+                return np.hstack(points)
+                
+        if self.paras.radiusOfBrainShell:
+            rB1,rB2 = self.paras.radiusOfBrainShell
+        else:
+            rB1 = 0
+            rB2 = self.paras.radiusOfBrain
+        if self.paras.dim == 3:
+            num = int(2*rB2/self.paras.gridSpacing)
+            x = np.linspace(-rB2,rB2,num,dtype=np.float32)
+            y = np.linspace(-rB2,rB2,num,dtype=np.float32)
+            z = np.linspace(-rB2,rB2,num,dtype=np.float32)
             xv, yv, zv = np.meshgrid(x, y, z, indexing='ij')
             grid_points = np.stack((xv, yv, zv), axis=-1)
             grid_points = grid_points.reshape(-1, 3).transpose()
         elif self.paras.dim == 2:
             # 只考虑 y=0 平面上源的分布
-            num = int(2*rB/self.paras.gridSpacing)
-            x = np.linspace(-rB,rB,num,dtype=np.float32)
+            num = int(2*rB2/self.paras.gridSpacing)
+            x = np.linspace(-rB2,rB2,num,dtype=np.float32)
             z = np.linspace(-self.paras.radiusOfBrain,self.paras.radiusOfBrain,num,dtype=np.float32)
             xv, zv = np.meshgrid(x, z, indexing='ij')
             grid_points = np.stack((xv, zv), axis=-1)
@@ -198,7 +213,7 @@ class Solver:
             grid_points = grid_points[[0,2,1],:]
 
         grid_norm = np.einsum("ij,ij->j",grid_points,grid_points)
-        grid_points = grid_points[:,grid_norm < rB**2] 
+        grid_points = grid_points[:,(rB1**2 <= grid_norm ) &  (grid_norm <= rB2**2)] 
         grid_norm = np.einsum("ij,ij->j",grid_points,grid_points)
         points = grid_points[:,grid_norm > 0] # 要把原点也去掉
         
@@ -754,10 +769,14 @@ class Visualizer:
                 ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
             )
 
-    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30):
+    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30,vmin=None):
         ps = solver.sourcePoints
         Q1 = Q[:solver.numOfSourcePoints]**2 + Q[solver.numOfSourcePoints:]**2
-        amplitude = Q1/np.max(Q1)
+        print(np.max(Q1))
+        if not vmin:
+            amplitude = Q1/np.max(Q1)
+        else:
+            amplitude = Q1/vmin
         ax.scatter(
             ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
         )
