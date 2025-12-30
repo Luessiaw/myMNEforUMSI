@@ -65,8 +65,14 @@ def getMoment(p:Paras,sigma:float):
     return Bm,rs,width
 
 rp_theta = 30/180*np.pi
-rp = np.array([np.cos(rp_theta),0,np.sin(rp_theta)])*8e-2
-
+rp_phis = np.array([0,10])/180*np.pi
+rps = []
+ps = []
+for phi in rp_phis:
+    rp = np.array([np.sin(rp_theta)*np.cos(phi),np.sin(rp_theta)*np.sin(phi),np.cos(rp_theta)])*8e-2
+    rps.append(rp)
+    
+    
 # rp1 = np.array([0,0,8e-2])
 # rp2 = np.array([0,0,7e-2])
 # rps = [rp1,rp2]
@@ -80,7 +86,7 @@ paras2v,paras2s,paras3v,paras3s = paras.childParas(numOfChannelsForDim2=15,
 
 paras3v.theta = 0
 
-paras3s.theta = 0
+paras3s.theta = np.pi/2
 paras3s.GeoFieldAtRef = 5e-5*(unit_x*np.sin(paras3s.theta)+unit_z*np.cos(paras3s.theta))
 
 for par in [paras3v,paras3s]:
@@ -109,7 +115,7 @@ for par in [paras3v,paras3s]:
     trial = sol.singleTrial()
     vz.showImagingResult(sol,trial.Q,ax,2)
     vz.showHead(par.radiusOfHead,par.dim,ax)
-    png_name = f"figs/腐化/result-{par.getLabel()}-30-2.png"
+    png_name = f"figs/腐化/result-{par.getLabel()}-x-2.png"
 
     vz.setAxis(ax,3,radius=0.13)
     ax.set_axis_off()

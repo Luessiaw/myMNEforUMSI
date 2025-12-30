@@ -11,6 +11,9 @@ from matplotlib import colors
 
 import numpy as np
 from .mathTools import *
+# from scipy.spatial import Delaunay # 三角化网格
+# import stripy
+import matplotlib.tri as mtri
 
 # plt.rcParams['text.usetex'] = True # 支持 latex
 # plt.rcParams['font.family'] = ["Times New Roman","serif"]
@@ -262,8 +265,9 @@ def plot3dBox(x_range,y_range,z_range,fig=None,*args,**kwargs):
 
     return fig
 
-def plot3dArrow(point1,n,fig=None,*args, **kwargs):
-    fig,ax = get3dAx(fig)
+def plot3dArrow(point1,n,fig=None,ax:plt.Axes=None,*args, **kwargs):
+    if not ax:
+        fig,ax = get3dAx(fig)
     x,y,z = point1
     u,v,w = n
     ax.quiver(x,y,z,u,v,w,*args, **kwargs)
@@ -277,6 +281,70 @@ def plot3dArrows(points,ns,fig=None,*args,**kwargs):
         n = ns[i]
         fig = plot3dArrow(point,n,fig,*args, **kwargs)
     return fig
+
+def draw_arrow(ax:plt.Axes, arrowBottom:np.ndarray, arrowTip:np.ndarray, 
+               arrowBottomRadius=0.05, arrowTipRadius=0.1, 
+               arrowBottomLength=0.5, arrowTipLength=0.1,color="red",
+               n_theta=20,n_r=6,n_z=6):
+    """
+    绘制一个3D箭头，箭头由圆柱和圆锥组成。
+    思路：先绘制一个标准的在 z 轴上的箭头，然后旋转，然后平移，得到箭头表面所有点的坐标，然后 plot surface
+    """
+    surfaces = []
+    # Step 1 先得到标准的箭头
+    # 1-1 圆柱底面坐标
+    theta = np.linspace(0, 2*np.pi, n_theta)
+    r = np.linspace(0,arrowBottomRadius,n_r)
+    Theta,R = np.meshgrid(theta,r)
+    X = R*np.cos(Theta)
+    Y = R*np.sin(Theta)
+    Z = np.zeros_like(X)
+    surfaces.append((X,Y,Z))
+    
+    # 1-2 圆柱侧面坐标
+    theta = np.linspace(0,2*np.pi,n_theta)
+    z = np.linspace(0,arrowBottomLength,n_z)
+    Theta,Z = np.meshgrid(theta,z)
+    X = arrowBottomRadius*np.cos(Theta)
+    Y = arrowBottomRadius*np.sin(Theta)
+    surfaces.append((X,Y,Z))
+    
+    # 1-3 圆锥底面坐标
+    theta = np.linspace(0, 2*np.pi, n_theta)
+    r = np.linspace(0,arrowTipRadius,n_r)
+    Theta,R = np.meshgrid(theta,r)
+    X = R*np.cos(Theta)
+    Y = R*np.sin(Theta)
+    Z = np.zeros_like(X) + arrowBottomLength
+    surfaces.append((X,Y,Z))
+    
+    # 1-4 圆锥侧面坐标
+    theta = np.linspace(0,2*np.pi,n_theta)
+    z = np.linspace(0,arrowTipLength,n_z)
+    Theta,Z = np.meshgrid(theta,z)
+    X = arrowTipRadius*(arrowTipLength-Z)/arrowTipLength*np.cos(Theta)
+    Y = arrowTipRadius*(arrowTipLength-Z)/arrowTipLength*np.sin(Theta)
+    Z += + arrowBottomLength
+    surfaces.append((X,Y,Z))
+
+    # ax.plot_surface(X,Y,Z) # 测试用
+        
+    # Step 2 变换坐标
+    n = arrowTip - arrowBottom # 箭头的方向
+    n = n/np.linalg.norm(n)
+    M = rotationMatrixFromNToM(unit_z,n)    
+    newSurfaces = []
+    for surface in surfaces:
+        X,Y,Z = np.einsum("ij,jkl->ikl",M,surface)
+        X += arrowBottom[0]
+        Y += arrowBottom[1]
+        Z += arrowBottom[2]
+        newSurfaces.append([X,Y,Z])
+
+    #  Step 3 绘制
+    for X,Y,Z in newSurfaces:
+        ax.plot_surface(X,Y,Z,color=color,shade=False)
+        pass
 
 def plot3dSegment(point1,point2,fig=None,*args, **kwargs):
     fig,ax = get3dAx(fig)
@@ -360,3 +428,68 @@ def showGridPositionAndIndex(gridPoints:list[np.ndarray],fig=None,ax=None,dim=2,
         fig = plot2dScatter(xs,ys,values=values,*args, **kwargs,fig=fig,ax=ax)
     return fig
 
+
+def plotFunctionOnSphere(ax:plt.Axes,f,radius:float,vmin:float,vmax:float,num=400,alpha=1,printExtrim=False):
+    '''在球面上绘制函数值。'''
+    fb_points = np.array(fibonacci_sphere(num*2)[:num])
+    xs = fb_points[:,0]
+    ys = fb_points[:,1]
+    zs = fb_points[:,2]
+        
+    triangle_surfaces = [] # 形如 [[(1,0.1,1),(...),(...)],[...]]
+    triangulation = mtri.Triangulation(xs,ys)
+    # Fibonacci 螺旋线构成的面
+    for k,triangle in enumerate(triangulation.triangles):
+        verts = []
+        for i in range(3):
+            x = xs[triangle[i]]
+            y = ys[triangle[i]]
+            z = zs[triangle[i]]
+            verts.append(np.array([x,y,z]))
+        triangle_surfaces.append(verts)
+
+    # 下方锯齿
+    boundPoints = np.array(convex_hull(np.array(list(zip(xs,ys)))))
+    xu,yu = boundPoints.transpose()
+    zu = np.sqrt(1-xu**2-yu**2)
+    pu = np.stack([xu,yu,zu]).transpose()
+    pu = np.vstack([pu,pu[0]])
+
+    theta = np.arctan2(pu[:,1],pu[:,0])
+    xd = np.cos(theta)
+    yd = np.sin(theta)
+    zd = np.zeros_like(xd)
+    pd = np.stack([xd,yd,zd]).transpose()
+
+    for i in range(xu.size):
+        p1u = pu[i]
+        p2u = pu[i+1]
+        p1d = pd[i]
+        p2d = pd[i+1]
+        triangle_surfaces.append([p1u,p1d,p2d])
+        triangle_surfaces.append([p1u,p2u,p2d])
+
+    triangle_surfaces = np.array(triangle_surfaces)*radius
+
+    cmap = plt.get_cmap('rainbow')
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    colors = [] # 三角面的中心点的归一化后的函数值决定颜色
+    fmin = np.inf
+    fmax = -np.inf
+    for verts in triangle_surfaces:
+        p = np.mean(verts,axis=0)
+        v = f(p)
+        fmin = min(fmin,v)
+        fmax = max(fmax,v)
+        rgba = list(cmap(norm(v)))
+        rgba[3] = alpha
+        colors.append(tuple(rgba))
+
+    if printExtrim:
+        print(f"fmin = {fmin}, fmax = {fmax}. ")
+
+    # colors = 1- np.array(colors)[:,:3]
+    for k,verts in enumerate(triangle_surfaces):
+        collection = Poly3DCollection([verts,],
+                                      facecolor=colors[k])
+        ax.add_collection3d(collection)

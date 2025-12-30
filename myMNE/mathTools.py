@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.linalg as lin
 # from sklearn.cluster import KMeans
-
+from typing import List, Tuple
 
 delta_tensor = lambda n:np.identity(n) # kronecker delta
 delta3 = delta_tensor(3)
@@ -230,3 +230,36 @@ def getProjectionOperatorForAmbientField(sensorPoints,ng,gradioTensors):
         P = np.dot(Pe,P)
 
     return P
+
+
+def convex_hull(points: np.ndarray):
+    """
+    计算二维点集的凸包（Monotone Chain 算法）
+    返回值：按逆时针顺序排列的凸包顶点
+    """
+
+    points = points.tolist()
+    # 去重并排序
+    points = sorted(points)
+    if len(points) <= 1:
+        return points
+
+    def cross(o, a, b) -> float:
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    # 下凸壳
+    lower = []
+    for p in points:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+
+    # 上凸壳
+    upper = []
+    for p in reversed(points):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+
+    # 合并（去掉首尾重复点）
+    return lower[:-1] + upper[:-1]
