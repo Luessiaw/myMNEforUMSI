@@ -70,14 +70,17 @@ rp = np.array([np.sin(rp_theta),0,np.cos(rp_theta)])*8e-2
 # rp1 = np.array([0,0,8e-2])
 # rp2 = np.array([0,0,7e-2])
 # rps = [rp1,rp2]
-p = np.array([0,100e-9,0])
+p = np.array([0,10e-9,0])
 # sources = [(rp1,p),(rp2,p)]
 
-paras.gridSpacing = 0.3e-2
+# 格点间距为 3 或 4 mm 时可看出UMSI与SMSI的差距。
+# paras.gridSpacing = 0.3e-2
+# paras.sourceOnSpheres = (np.linspace(7,9,5,endpoint=True)*1e-2).tolist()
+paras.gridSpacing = 0.8e-2
 # paras.radiusOfBrainShell = [8e-2,9e-2]
-paras.sourceOnSpheres = (np.linspace(7,9,5,endpoint=True)*1e-2).tolist()
+paras.sourceOnSpheres = (np.linspace(7,9,3,endpoint=True)*1e-2).tolist()
 paras.fixDipole = (rp,p)
-paras.externalNoise = 50e-15
+paras.externalNoise = 10e-15
 
 paras2v,paras2s,paras3v,paras3s = paras.childParas(numOfChannelsForDim2=15,
                                 numOfChannelsForDim3=128)
@@ -89,8 +92,8 @@ paras3s.theta = 0
 paras3s.GeoFieldAtRef = 5e-5*(unit_x*np.sin(paras3s.theta)+unit_z*np.cos(paras3s.theta))
 
 task = 1
-task = 2
-task = 3
+# task = 2
+# task = 3
 t = time.time()
 for par in [paras3v,paras3s]:
     rp,p = par.fixDipole
@@ -100,8 +103,6 @@ for par in [paras3v,paras3s]:
     vz = Visualizer()
 
     # 绘制头部
-    # ax_head = vs.add2Doverlay("figs/headWithBrain.png",fig=fig,pos=[0.28,0.22,0.45,0.6],anchor="C",alpha=1)
-    # ax_head.set_axis_off()
     fig,ax = vz.create3DAxis(par.dim,fig=fig,lims=[0.15,0.15,0.15])
     ax.set_axis_off()
 
@@ -117,13 +118,8 @@ for par in [paras3v,paras3s]:
         png_name = f"source"
     elif task ==2:
         # 绘制测量值
-        # vs.plotHalfSphere(origin,par.radiusOfBrain,ax,color="oldlace",alpha=0.05)
-        # vz.showSource(rp,p,ax,par.dim,
-        #             arrowBottomRadius=0.001,arrowTipRadius=0.0025,
-        #             arrowBottomLength=0.01,arrowTipLength=0.005)
-
         sol = Solver(par)
-        vz.showMeasuredB(ax,sol,rp,p,vmin=-4e-12,vmax=4e-12,num=3000,alpha=1,printExtrim=True)
+        vz.showMeasuredB(ax,sol,rp,p,vmin=-4e-13,vmax=4e-13,num=3000,alpha=1,printExtrim=True,cmap="coolwarm")
         png_name = f"measurement"
 
     elif task == 3:
@@ -133,13 +129,7 @@ for par in [paras3v,paras3s]:
         trial = sol.singleTrial()
 
         vz.showHead(par.radiusOfHead,par.dim,ax,alpha=0.05)
-        # vz.showSource(rp,p,ax,par.dim,
-        #             arrowBottomRadius=0.001,arrowTipRadius=0.0025,
-        #             arrowBottomLength=0.01,arrowTipLength=0.005)
-        # vz.showAxisArrow(ax,0.12,0.11,0.11,
-        #                 bottomRadius=0.0005,tipRadius=0.002,
-        #                 xTipLength=0.01,yTipLength=0.01,zTipLength=0.01)
-        vz.showImagingResult(sol,trial.Q,ax,10,alpha=1)
+        vz.showImagingResult(sol,trial.Q,ax,10,alpha=1,cmap="Greens")
         png_name = f"result"
 
     fig.canvas.draw()

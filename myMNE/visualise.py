@@ -444,7 +444,7 @@ def showGridPositionAndIndex(gridPoints:list[np.ndarray],fig=None,ax=None,dim=2,
     return fig
 
 
-def plotFunctionOnSphere(ax:plt.Axes,f,radius:float,vmin:float,vmax:float,num=400,alpha=1,printExtrim=False):
+def plotFunctionOnSphere(ax:plt.Axes,f,radius:float,vmin:float,vmax:float,num=400,alpha=1,printExtrim=False,cmap="rainbow"):
     '''在球面上绘制函数值。'''
     fb_points = np.array(fibonacci_sphere(num*2)[:num])
     xs = fb_points[:,0]
@@ -486,7 +486,7 @@ def plotFunctionOnSphere(ax:plt.Axes,f,radius:float,vmin:float,vmax:float,num=40
 
     triangle_surfaces = np.array(triangle_surfaces)*radius
 
-    cmap = plt.get_cmap('rainbow')
+    cmap = plt.get_cmap(cmap)
     norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
     colors = [] # 三角面的中心点的归一化后的函数值决定颜色
     fmin = np.inf

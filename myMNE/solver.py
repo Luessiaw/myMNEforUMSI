@@ -769,7 +769,7 @@ class Visualizer:
                 ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
             )
 
-    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30,vmin=None,alpha=0.8):
+    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30,vmin=None,alpha=0.8,cmap="Reds"):
         ps = solver.sourcePoints
         Q1 = Q[:solver.numOfSourcePoints]**2 + Q[solver.numOfSourcePoints:]**2
         print(f"max amplitude of imaging result: {np.max(Q1)}")
@@ -778,7 +778,7 @@ class Visualizer:
         else:
             amplitude = Q1/vmin
         ax.scatter(
-            ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds",alpha=alpha
+            ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap=cmap,alpha=alpha
         )
 
     def showLocPair(self,trial:Solver.Trial,showLink=True,ax:vs.plt.Axes=None):
@@ -942,11 +942,11 @@ class Visualizer:
         if zlength:
             vs.draw_arrow(ax,origin,np.array([0,0,zlength]),arrowBottomRadius=bottomRadius,arrowTipRadius=tipRadius,color=zcolor,arrowBottomLength=zlength,arrowTipLength=zTipLength)
 
-    def showMeasuredB(self,ax:vs.plt.Axes,solver:Solver,rp,p,vmin,vmax,num=400,alpha=1,printExtrim=False):
+    def showMeasuredB(self,ax:vs.plt.Axes,solver:Solver,rp,p,vmin,vmax,num=400,alpha=1,printExtrim=False,cmap="rainbow"):
         def f(r):
             return solver.getB(rp,p,r)
 
-        vs.plotFunctionOnSphere(ax,f,radius=solver.paras.radiusOfSensorShell,vmin=vmin,vmax=vmax,num=num,alpha=alpha,printExtrim=printExtrim)
+        vs.plotFunctionOnSphere(ax,f,radius=solver.paras.radiusOfSensorShell,vmin=vmin,vmax=vmax,num=num,alpha=alpha,printExtrim=printExtrim,cmap=cmap)
         pass
 
 class VarContraller:
