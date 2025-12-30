@@ -32,6 +32,8 @@ class Paras:
         self.dim = 2
         self.radiusOfHead = 10e-2
         self.radiusOfBrain = 9e-2 # 大脑半径
+        self.radiusOfBrainShell = [] # 大脑球壳半径
+        self.sourceOnSpheres = [] # 源位于几个球面上，元素为球面半径
         self.gridSpacing = 1e-2
         # 源。如果出于调试等目的需要指定某个源，请在 runTrail 的部分修改。
         self.dipoleStrength = 10e-9 # 偶极子强度
@@ -176,19 +178,32 @@ class Solver:
         self.trials = self.Trials(self.paras.numOfTrials,self.paras.numOfChannels)
 
     def getSourcePoints(self):
-        rB = self.paras.radiusOfBrain
         if self.paras.dim == 3:
-            num = int(2*rB/self.paras.gridSpacing)
-            x = np.linspace(-rB,rB,num,dtype=np.float32)
-            y = np.linspace(-rB,rB,num,dtype=np.float32)
-            z = np.linspace(-rB,rB,num,dtype=np.float32)
+            if self.paras.sourceOnSpheres:
+                points = []
+                for radius in self.paras.sourceOnSpheres:
+                    M = int(4*np.pi*radius**2/self.paras.gridSpacing**2)
+                    points1 = np.array(fibonacci_sphere(M)).transpose()*radius
+                    points.append(points1)
+                return np.hstack(points)
+                
+        if self.paras.radiusOfBrainShell:
+            rB1,rB2 = self.paras.radiusOfBrainShell
+        else:
+            rB1 = 0
+            rB2 = self.paras.radiusOfBrain
+        if self.paras.dim == 3:
+            num = int(2*rB2/self.paras.gridSpacing)
+            x = np.linspace(-rB2,rB2,num,dtype=np.float32)
+            y = np.linspace(-rB2,rB2,num,dtype=np.float32)
+            z = np.linspace(-rB2,rB2,num,dtype=np.float32)
             xv, yv, zv = np.meshgrid(x, y, z, indexing='ij')
             grid_points = np.stack((xv, yv, zv), axis=-1)
             grid_points = grid_points.reshape(-1, 3).transpose()
         elif self.paras.dim == 2:
             # 只考虑 y=0 平面上源的分布
-            num = int(2*rB/self.paras.gridSpacing)
-            x = np.linspace(-rB,rB,num,dtype=np.float32)
+            num = int(2*rB2/self.paras.gridSpacing)
+            x = np.linspace(-rB2,rB2,num,dtype=np.float32)
             z = np.linspace(-self.paras.radiusOfBrain,self.paras.radiusOfBrain,num,dtype=np.float32)
             xv, zv = np.meshgrid(x, z, indexing='ij')
             grid_points = np.stack((xv, zv), axis=-1)
@@ -198,7 +213,7 @@ class Solver:
             grid_points = grid_points[[0,2,1],:]
 
         grid_norm = np.einsum("ij,ij->j",grid_points,grid_points)
-        grid_points = grid_points[:,grid_norm < rB**2] 
+        grid_points = grid_points[:,(rB1**2 <= grid_norm ) &  (grid_norm <= rB2**2)] 
         grid_norm = np.einsum("ij,ij->j",grid_points,grid_points)
         points = grid_points[:,grid_norm > 0] # 要把原点也去掉
         
@@ -754,12 +769,16 @@ class Visualizer:
                 ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
             )
 
-    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30):
+    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30,vmin=None,alpha=0.8,cmap="Reds"):
         ps = solver.sourcePoints
         Q1 = Q[:solver.numOfSourcePoints]**2 + Q[solver.numOfSourcePoints:]**2
-        amplitude = Q1/np.max(Q1)
+        print(f"max amplitude of imaging result: {np.max(Q1)}")
+        if not vmin:
+            amplitude = Q1/np.max(Q1)
+        else:
+            amplitude = Q1/vmin
         ax.scatter(
-            ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
+            ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap=cmap,alpha=alpha
         )
 
     def showLocPair(self,trial:Solver.Trial,showLink=True,ax:vs.plt.Axes=None):
@@ -852,17 +871,31 @@ class Visualizer:
 
         return fig
 
-    def getAxis(self,dim=3):
+    def create3DAxis(self,dim=3,fig=None,pos=[0,0,1,1],view_angle=[30,30],lims=[1,1,1]):
         '''获得3d'''
-        if dim==2:
-            fig,ax = vs.get2dAx()
-        else:
-            fig,ax = vs.get3dAx()
-        ax.view_init(elev=30, azim=30)
+        if not fig:
+            fig = vs.plt.figure()
+        ax = fig.add_axes(pos,projection="3d")
+        ax.view_init(elev=view_angle[0], azim=view_angle[1])
+
         fig.patch.set_alpha(0)
         fig.patch.set_facecolor('none')
         ax.patch.set_alpha(0)
         ax.set_facecolor('none')
+                
+        ax.xaxis.pane.fill = False
+        ax.yaxis.pane.fill = False
+        ax.zaxis.pane.fill = False        
+        ax.xaxis.pane.set_edgecolor('none')
+        ax.yaxis.pane.set_edgecolor('none')
+        ax.zaxis.pane.set_edgecolor('none')
+        
+        ax.set_xlim([-lims[0],lims[0]])
+        ax.set_ylim([-lims[1],lims[1]])
+        ax.set_zlim([-lims[2],lims[2]])
+        
+        ax.set_aspect("equal")
+
         return fig,ax
 
     def showSource(self,rp:np.ndarray,p:np.ndarray,ax:vs.plt.Axes,dim=3, 
@@ -879,9 +912,9 @@ class Visualizer:
             vs.draw_arrow(ax,arrowBottom,arrowTip,arrowBottomRadius,arrowTipRadius,arrowBottomLength,arrowTipLength)
             # vs.plot3dArrow(rp,n,None,ax)
 
-    def showHead(self,headRadius:float,dim=3,ax:vs.plt.Axes=None):
+    def showHead(self,headRadius:float,dim=3,ax:vs.plt.Axes=None,alpha=0.1):
         if dim == 3:
-            vs.plotSphere(origin,headRadius,ax=ax,color="oldlace",alpha=0.05)
+            vs.plotSphere(origin,headRadius,ax=ax,color="oldlace",alpha=alpha)
 
     def setAxis(self,ax:vs.plt.Axes,dim=3,xlabel="",ylabel="",zlabel="",radius=None):
         if xlabel:
@@ -909,11 +942,11 @@ class Visualizer:
         if zlength:
             vs.draw_arrow(ax,origin,np.array([0,0,zlength]),arrowBottomRadius=bottomRadius,arrowTipRadius=tipRadius,color=zcolor,arrowBottomLength=zlength,arrowTipLength=zTipLength)
 
-    def showMeasuredB(self,ax:vs.plt.Axes,solver:Solver,rp,p,vmin,vmax,num=400,alpha=1,printExtrim=False):
+    def showMeasuredB(self,ax:vs.plt.Axes,solver:Solver,rp,p,vmin,vmax,num=400,alpha=1,printExtrim=False,cmap="rainbow"):
         def f(r):
             return solver.getB(rp,p,r)
 
-        vs.plotFunctionOnSphere(ax,f,radius=solver.paras.radiusOfSensorShell,vmin=vmin,vmax=vmax,num=num,alpha=alpha,printExtrim=printExtrim)
+        vs.plotFunctionOnSphere(ax,f,radius=solver.paras.radiusOfSensorShell,vmin=vmin,vmax=vmax,num=num,alpha=alpha,printExtrim=printExtrim,cmap=cmap)
         pass
 
 class VarContraller:
