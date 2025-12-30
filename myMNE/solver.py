@@ -179,17 +179,17 @@ class Solver:
         rB = self.paras.radiusOfBrain
         if self.paras.dim == 3:
             num = int(2*rB/self.paras.gridSpacing)
-            x = np.linspace(-rB,rB,num)
-            y = np.linspace(-rB,rB,num)
-            z = np.linspace(-rB,rB,num)
+            x = np.linspace(-rB,rB,num,dtype=np.float32)
+            y = np.linspace(-rB,rB,num,dtype=np.float32)
+            z = np.linspace(-rB,rB,num,dtype=np.float32)
             xv, yv, zv = np.meshgrid(x, y, z, indexing='ij')
             grid_points = np.stack((xv, yv, zv), axis=-1)
             grid_points = grid_points.reshape(-1, 3).transpose()
         elif self.paras.dim == 2:
             # 只考虑 y=0 平面上源的分布
             num = int(2*rB/self.paras.gridSpacing)
-            x = np.linspace(-rB,rB,num)
-            z = np.linspace(-self.paras.radiusOfBrain,self.paras.radiusOfBrain,num)
+            x = np.linspace(-rB,rB,num,dtype=np.float32)
+            z = np.linspace(-self.paras.radiusOfBrain,self.paras.radiusOfBrain,num,dtype=np.float32)
             xv, zv = np.meshgrid(x, z, indexing='ij')
             grid_points = np.stack((xv, zv), axis=-1)
             grid_points = grid_points.reshape(-1,2).transpose()
@@ -210,6 +210,7 @@ class Solver:
             fibPoints = fibonacci_sphere(self.paras.numOfChannels*2)
             fibPoints = fibPoints[:self.paras.numOfChannels]
             points = np.vstack(fibPoints).transpose()
+            points = np.array(points,dtype=np.float32)
         else:
             # 二维情形，探头在 y=0 平面的圆弧上均匀分布
             thetas = np.pi/2 + np.linspace(-np.pi/2,np.pi/2,self.paras.numOfChannels)
@@ -217,6 +218,7 @@ class Solver:
             ys = np.zeros(xs.shape)
             zs = np.sin(thetas)
             points = np.vstack([xs,ys,zs])
+            points = np.array(points,dtype=np.float32)
 
         points *= self.paras.radiusOfSensorShell
         return points
@@ -518,7 +520,7 @@ class Solver:
         rp = np.transpose(np.broadcast_to(sourcePoints,(numOfr,3,numOfrp)),(0,2,1))
         r = np.transpose(np.broadcast_to(sensorPoints,(numOfrp,3,numOfr)),(2,0,1))
         n = np.transpose(np.broadcast_to(sensorOris,(numOfrp,3,numOfr)),(2,0,1))
-        
+                
         R = r - rp
         nr2 = np.einsum("ijk,ijk->ij",r,r)
         nr = np.sqrt(nr2)
@@ -530,8 +532,9 @@ class Solver:
         F = nr*nR2 + nR*rdR
         nablaF = np.einsum("ij,ijk->ijk",nR2/nr+nR,r) + np.einsum("ij,ijk->ijk",rdR/nR+nR+2*nr,R)
         
-        M1 = np.einsum("ijk,mnk->ijmn",rp,epsilon)
-        M2 = np.einsum("lnk,ijl,ijk,ijm->ijmn",epsilon,r,rp,nablaF)
+        epsilon32 = epsilon.astype(np.float32, copy=False)
+        M1 = np.einsum("ijk,mnk->ijmn",rp,epsilon32)
+        M2 = np.einsum("lnk,ijl,ijk,ijm->ijmn",epsilon32,r,rp,nablaF)
         
         # L3x3 = k0*M1/F - k0*M2/F**2
         L3x31 = k0*np.einsum("ijmn,ij->ijmn",M1,1/F) 
@@ -562,6 +565,25 @@ class Solver:
             L = np.hstack([L2,L3])
 
         return L
+
+    def getB(self,rp:np.ndarray,p:np.ndarray,r:np.ndarray):
+        """给定源rp, p 和场点 r , 计算产生的磁场值"""
+        R = r - rp
+        nr = np.linalg.norm(r)
+        nR = np.linalg.norm(R)
+        F = nR*(nr*nR+np.vdot(r,R))
+        nablaF = (nR**2/nr+nR)*r + (np.vdot(r,R)/nR+nR+2*nr)*R
+        q = np.cross(p,rp)
+
+        if self.paras.sensorType == "scalar":
+            Bgeo = self.paras.GeoFieldAtRef + np.dot(self.paras.GeoFieldGradientTensor,r)
+            nSensor = Bgeo/np.linalg.norm(Bgeo)
+        elif self.paras.sensorType == "vector":
+            nSensor = r/np.linalg.norm(r)
+
+        Bi = k0*(q/F-np.vdot(q,r)*nablaF/F**2)
+        B = np.vdot(nSensor,Bi)
+        return B
 
     def getInverseMatrix(self):
         LT = np.transpose(self.L)
@@ -732,6 +754,14 @@ class Visualizer:
                 ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
             )
 
+    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30):
+        ps = solver.sourcePoints
+        Q1 = Q[:solver.numOfSourcePoints]**2 + Q[solver.numOfSourcePoints:]**2
+        amplitude = Q1/np.max(Q1)
+        ax.scatter(
+            ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
+        )
+
     def showLocPair(self,trial:Solver.Trial,showLink=True,ax:vs.plt.Axes=None):
         '''画出一次模拟的偶极子位置-定位结果'''
         if trial.dim == 2:
@@ -825,9 +855,15 @@ class Visualizer:
     def getAxis(self,dim=3):
         '''获得3d'''
         if dim==2:
-            return vs.get2dAx()
+            fig,ax = vs.get2dAx()
         else:
-            return vs.get3dAx()
+            fig,ax = vs.get3dAx()
+        ax.view_init(elev=30, azim=30)
+        fig.patch.set_alpha(0)
+        fig.patch.set_facecolor('none')
+        ax.patch.set_alpha(0)
+        ax.set_facecolor('none')
+        return fig,ax
 
     def showSource(self,rp:np.ndarray,p:np.ndarray,ax:vs.plt.Axes,dim=3, 
         arrowBottomRadius=0.05, arrowTipRadius=0.1, 
@@ -838,8 +874,8 @@ class Visualizer:
         if dim == 2:
             return
         if dim == 3:
-            arrowBottom = rp
-            arrowTip = rp + n*0.1
+            arrowBottom = rp - n*(arrowBottomLength+arrowTipLength)/2
+            arrowTip = arrowBottom + n*(arrowBottomLength+arrowTipLength)
             vs.draw_arrow(ax,arrowBottom,arrowTip,arrowBottomRadius,arrowTipRadius,arrowBottomLength,arrowTipLength)
             # vs.plot3dArrow(rp,n,None,ax)
 
@@ -847,14 +883,19 @@ class Visualizer:
         if dim == 3:
             vs.plotSphere(origin,headRadius,ax=ax,color="oldlace",alpha=0.05)
 
-    def setAxis(self,ax:vs.plt.Axes,dim=3,xlabel="",ylabel="",zlabel=""):
-        if dim==3:
-            if xlabel:
-                ax.set_xlabel("x (m)")
-            if ylabel:
-                ax.set_ylabel("y (m)")
-            if zlabel:
-                ax.set_zlabel("z (m)")
+    def setAxis(self,ax:vs.plt.Axes,dim=3,xlabel="",ylabel="",zlabel="",radius=None):
+        if xlabel:
+            ax.set_xlabel("x (m)")
+        if ylabel:
+            ax.set_ylabel("y (m)")
+        if zlabel:
+            ax.set_zlabel("z (m)")
+        if radius:
+            ax.set_xlim([-radius,radius])
+            ax.set_ylim([-radius,radius])
+            ax.set_zlim([-radius,radius])
+
+        ax.set_aspect("equal")
 
     def showAxisArrow(self,ax:vs.plt.Axes,
                       xlength=1,ylength=1,zlength=1,
@@ -867,6 +908,13 @@ class Visualizer:
             vs.draw_arrow(ax,origin,np.array([0,ylength,0]),arrowBottomRadius=bottomRadius,arrowTipRadius=tipRadius,color=ycolor,arrowBottomLength=ylength,arrowTipLength=yTipLength)
         if zlength:
             vs.draw_arrow(ax,origin,np.array([0,0,zlength]),arrowBottomRadius=bottomRadius,arrowTipRadius=tipRadius,color=zcolor,arrowBottomLength=zlength,arrowTipLength=zTipLength)
+
+    def showMeasuredB(self,ax:vs.plt.Axes,solver:Solver,rp,p,vmin,vmax,num=400,alpha=1,printExtrim=False):
+        def f(r):
+            return solver.getB(rp,p,r)
+
+        vs.plotFunctionOnSphere(ax,f,radius=solver.paras.radiusOfSensorShell,vmin=vmin,vmax=vmax,num=num,alpha=alpha,printExtrim=printExtrim)
+        pass
 
 class VarContraller:
     def __init__(self,variableName,variableValues,variableFunc,baseParas:Paras,refreshMode=1):

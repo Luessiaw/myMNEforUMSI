@@ -29,9 +29,6 @@ f = lambda p:p[2]
 plotFunctionOnSphere(ax,f=f,radius=0.11,vmin=0,vmax=0.11, num=400)
 
 fb_points = np.array(fibonacci_sphere(800)[:400])
-# for p in fb_points:
-#     p*= 1.02
-#     ax.scatter(p[0],p[1],p[2])
 
 xs = fb_points[:,0]
 ys = fb_points[:,1]
