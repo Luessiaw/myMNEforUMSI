@@ -8,7 +8,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 from matplotlib import colors
-
+import matplotlib.image as mpimg
 import numpy as np
 from .mathTools import *
 # from scipy.spatial import Delaunay # 三角化网格
@@ -215,6 +215,21 @@ def plotSphere(center,radius,ax:plt.Axes,*args, **kwargs):
     '''以 center 为球心，radius 为半径的球面'''
 
     u,v = np.mgrid[0:2*np.pi:50j,0:np.pi:50j]
+    X = np.cos(u)*np.sin(v)*radius
+    Y = np.sin(u)*np.sin(v)*radius
+    Z = np.cos(v)*radius
+    
+    X += center[0]
+    Y += center[1]
+    Z += center[2]
+
+    ax.plot_surface(X,Y,Z,*args, **kwargs)
+
+
+def plotHalfSphere(center,radius,ax:plt.Axes,*args, **kwargs):
+    '''以 center 为球心，radius 为半径的下半球面'''
+
+    u,v = np.mgrid[0:2*np.pi:50j,np.pi/2:np.pi:50j]
     X = np.cos(u)*np.sin(v)*radius
     Y = np.sin(u)*np.sin(v)*radius
     Z = np.cos(v)*radius
@@ -490,6 +505,13 @@ def plotFunctionOnSphere(ax:plt.Axes,f,radius:float,vmin:float,vmax:float,num=40
 
     # colors = 1- np.array(colors)[:,:3]
     for k,verts in enumerate(triangle_surfaces):
-        collection = Poly3DCollection([verts,],
+        collection = Poly3DCollection([verts,],lw=0,
                                       facecolor=colors[k])
         ax.add_collection3d(collection)
+
+def add2Doverlay(img_file:str,fig:plt.Figure,pos=[0.5,0.5,0.3,0.3],anchor="C",alpha=1):
+    img = mpimg.imread(img_file)
+    # 在 axes 坐标系中叠加（0~1）
+    ax = fig.add_axes(pos, anchor=anchor)
+    ax.imshow(img,alpha=alpha)
+    return ax

@@ -769,16 +769,16 @@ class Visualizer:
                 ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
             )
 
-    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30,vmin=None):
+    def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30,vmin=None,alpha=0.8):
         ps = solver.sourcePoints
         Q1 = Q[:solver.numOfSourcePoints]**2 + Q[solver.numOfSourcePoints:]**2
-        print(np.max(Q1))
+        print(f"max amplitude of imaging result: {np.max(Q1)}")
         if not vmin:
             amplitude = Q1/np.max(Q1)
         else:
             amplitude = Q1/vmin
         ax.scatter(
-            ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds"
+            ps[0,:],ps[1,:],ps[2,:],s=scatterSize,c=amplitude,cmap="Reds",alpha=alpha
         )
 
     def showLocPair(self,trial:Solver.Trial,showLink=True,ax:vs.plt.Axes=None):
@@ -871,17 +871,31 @@ class Visualizer:
 
         return fig
 
-    def getAxis(self,dim=3):
+    def create3DAxis(self,dim=3,fig=None,pos=[0,0,1,1],view_angle=[30,30],lims=[1,1,1]):
         '''获得3d'''
-        if dim==2:
-            fig,ax = vs.get2dAx()
-        else:
-            fig,ax = vs.get3dAx()
-        ax.view_init(elev=30, azim=30)
+        if not fig:
+            fig = vs.plt.figure()
+        ax = fig.add_axes(pos,projection="3d")
+        ax.view_init(elev=view_angle[0], azim=view_angle[1])
+
         fig.patch.set_alpha(0)
         fig.patch.set_facecolor('none')
         ax.patch.set_alpha(0)
         ax.set_facecolor('none')
+                
+        ax.xaxis.pane.fill = False
+        ax.yaxis.pane.fill = False
+        ax.zaxis.pane.fill = False        
+        ax.xaxis.pane.set_edgecolor('none')
+        ax.yaxis.pane.set_edgecolor('none')
+        ax.zaxis.pane.set_edgecolor('none')
+        
+        ax.set_xlim([-lims[0],lims[0]])
+        ax.set_ylim([-lims[1],lims[1]])
+        ax.set_zlim([-lims[2],lims[2]])
+        
+        ax.set_aspect("equal")
+
         return fig,ax
 
     def showSource(self,rp:np.ndarray,p:np.ndarray,ax:vs.plt.Axes,dim=3, 
@@ -898,9 +912,9 @@ class Visualizer:
             vs.draw_arrow(ax,arrowBottom,arrowTip,arrowBottomRadius,arrowTipRadius,arrowBottomLength,arrowTipLength)
             # vs.plot3dArrow(rp,n,None,ax)
 
-    def showHead(self,headRadius:float,dim=3,ax:vs.plt.Axes=None):
+    def showHead(self,headRadius:float,dim=3,ax:vs.plt.Axes=None,alpha=0.1):
         if dim == 3:
-            vs.plotSphere(origin,headRadius,ax=ax,color="oldlace",alpha=0.05)
+            vs.plotSphere(origin,headRadius,ax=ax,color="oldlace",alpha=alpha)
 
     def setAxis(self,ax:vs.plt.Axes,dim=3,xlabel="",ylabel="",zlabel="",radius=None):
         if xlabel:
