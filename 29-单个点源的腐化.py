@@ -129,7 +129,7 @@ for par in [paras3v,paras3s]:
         trial = sol.singleTrial()
 
         vz.showHead(par.radiusOfHead,par.dim,ax,alpha=0.05)
-        vz.showImagingResult(sol,trial.Q,ax,10,alpha=1,cmap="Greens")
+        vz.showImagingResult(sol,trial.Q,ax,10,alpha=1,cmap="Reds")
         png_name = f"result"
 
     fig.canvas.draw()

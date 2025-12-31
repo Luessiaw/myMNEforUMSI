@@ -81,6 +81,16 @@ def fibonacci_sphere(M=100):
 
     return points
 
+def disk_fibonacci(N):
+    '''单位圆盘内均匀取网格点'''
+    n = np.arange(N)
+    alpha = np.pi * (3 - np.sqrt(5))   # golden angle
+    r = np.sqrt(n / N)
+    theta = n * alpha
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+    return x, y
+
 def fullRankG(G):
     ''' G 是一个 c 列矩阵，每一列记为 g1,g2,g3
     计算 G^T G 的秩，
