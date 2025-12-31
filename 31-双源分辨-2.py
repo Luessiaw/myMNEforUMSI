@@ -68,19 +68,7 @@ def getMoment(p:Paras,sigma:float):
 # 源距离原点距离为 9 cm
 # rp_phis = np.array([-30,0])/180*np.pi
 # rp_theta = 45/180*np.pi
-rp_phis = np.array([-30,0])/180*np.pi
-rp_theta = 45/180*np.pi
-rps = []
-ps = []
-strengths = [10,10]
-for i,phi in enumerate(rp_phis):
-    rp = np.array([np.sin(rp_theta)*np.cos(phi),
-                   np.sin(rp_theta)*np.sin(phi),
-                   np.cos(rp_theta)])*9e-2
-    rps.append(rp)
-    p = np.cross(unit_z,rp)
-    p = strengths[i]*1e-9*p/np.linalg.norm(p)
-    ps.append(p)
+phis = [-90,-75,-60,-45,-30]
 
 p = np.array([0,10e-9,0])
 # sources = [(rp1,p),(rp2,p)]
@@ -108,16 +96,17 @@ task = 3
 print(f"task {task}.")
 t = time.time()
 colors = ["red","blue","green"]
-for par in [paras3s,paras3v]:
+fig2 = vs.plt.figure(figsize=(15,8))
+for (k,par) in enumerate([paras3s,paras3v]):
     # rp,p = par.fixDipole
 
-    fig = vs.plt.figure()
-    fig.set_size_inches(10,8)
-    vz = Visualizer()
+    # fig = vs.plt.figure()
+    # fig.set_size_inches(10,8)
+    # vz = Visualizer()
 
-    # 绘制头部
-    fig,ax = vz.create3DAxis(par.dim,fig=fig,lims=[0.15,0.15,0.15])
-    ax.set_axis_off()
+    # # 绘制头部
+    # fig,ax = vz.create3DAxis(par.dim,fig=fig,lims=[0.15,0.15,0.15])
+    # ax.set_axis_off()
 
     if task == 1:
         # 绘制源
@@ -150,65 +139,78 @@ for par in [paras3s,paras3v]:
         #                 arrowBottomLength=0.01,arrowTipLength=0.005,
         #                 color=colors[i%len(colors)])
 
-        fig2 = vs.plt.figure(figsize=(15,8))
-
         points = sol.sourcePoints
         distance = np.sqrt(points[0,:]**2+points[1,:]**2+points[2,:]**2)
         radius = sol.paras.sourceOnSpheres[-1]
-        mask = (distance<radius*1.1)&(distance>radius*0.9)
+        mask = (distance<radius*1.1)&(distance>radius*0.9)&(points[2,:]>=0)
         xs = points[0,mask]
         ys = points[1,mask]
 
-        Zmax = 0
-        Qs = []
-        zss = []
-        for i in range(2):
-            Bm = sol.getBm(rps[i],ps[i],not i) # not i 表示只计算一次噪声
+        for (j,phi) in enumerate(phis):
+            rp_phis = np.array([phi,0])/180*np.pi
+            rp_theta = 45/180*np.pi
+            rps = []
+            ps = []
+            strengths = [10,10]
+            for i,rp_phi in enumerate(rp_phis):
+                rp = np.array([np.sin(rp_theta)*np.cos(rp_phi),
+                            np.sin(rp_theta)*np.sin(rp_phi),
+                            np.cos(rp_theta)])*9e-2
+                rps.append(rp)
+                p = np.cross(unit_z,rp)
+                p = strengths[i]*1e-9*p/np.linalg.norm(p)
+                ps.append(p)
 
-            Q = sol.applyInverse(Bm)
-            Q1 = sol.getQAmplitute(Q)
+            Zmax = 0
+            Qs = []
+            zss = []
+            for i in range(2):
+                Bm = sol.getBm(rps[i],ps[i],not i) # not i 表示只计算一次噪声
+                Q = sol.applyInverse(Bm)
+                Q1 = sol.getQAmplitute(Q)
+                zs = Q1[mask]
+                Zmax = max(Zmax,zs.max())
+                Qs.append(Q)
+                zss.append(zs)
+
+            zs12 = zss[0]+zss[1]
+            Zmax = max(Zmax,zs12.max())
+            zss.append(zs12)
+
+            Q12 = Qs[0]+Qs[1]
+            Q1 = sol.getQAmplitute(Q12)
             zs = Q1[mask]
             Zmax = max(Zmax,zs.max())
-            Qs.append(Q)
             zss.append(zs)
-
-        zs12 = zss[0]+zss[1]
-        Zmax = max(Zmax,zs12.max())
-        zss.append(zs12)
-
-        Q12 = Qs[0]+Qs[1]
-        Q1 = sol.getQAmplitute(Q12)
-        # Q1 = Q12[:sol.numOfSourcePoints]**2 + Q12[sol.numOfSourcePoints:]**2
-        zs = Q1[mask]
-        Zmax = max(Zmax,zs.max())
-        zss.append(zs)
-        
-        for i in range(4):
-            zs = zss[i]
-            ax2 = fig2.add_subplot(1,4,i+1,projection="3d")
-            ax2.scatter(xs,ys,zs,c=zs,cmap="Reds",s=15)
-            ax2.set_title(f"r = {radius*100:.1f} cm")
+            
+            zs = zss[-1]
+            # ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k,projection="3d")
+            ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k)
+            # ax2.scatter(xs,ys,c=zs,cmap="Reds",s=15)
+            ax2.tricontourf(xs,ys,zs,levels=14,cmap="Reds")
+            ax2.set_title(f"phi = {-phi:.0f} ")
             ax2.set_xlim([-0.1,0.1])
             ax2.set_ylim([-0.1,0.1])
-            # ax2.set_zlim([-0.05,1.05])
+            ax2.set_aspect("equal")
 
-        fig2.canvas.draw()
-        fig2.savefig(f"figs/双源分辨/{str(int(t))[5:]}-{par.getLabel()}-shells.png",
-                    dpi=300,bbox_inches='tight', 
-                    pad_inches=0,
-                    # transparent=True
-                    )
-        vs.plt.close(fig2)
-        vz.showHead(par.radiusOfHead,par.dim,ax,alpha=0.05)
-        vz.showImagingResult(sol,Q,ax,10,alpha=1,cmap="Reds")
+    #     vz.showHead(par.radiusOfHead,par.dim,ax,alpha=0.05)
+    #     vz.showImagingResult(sol,Q,ax,10,alpha=1,cmap="Reds")
         
-        png_name = f"result"
+    #     png_name = f"result"
 
-    fig.canvas.draw()
-    fig.savefig(f"figs/双源分辨/{str(int(t))[5:]}-{png_name}-{par.getLabel()}.png",
-                dpi=300,bbox_inches='tight', 
-                pad_inches=0,
-                transparent=True)
-    vs.plt.close(fig)
-    
+    # fig.canvas.draw()
+    # fig.savefig(f"figs/双源分辨/{str(int(t))[5:]}-{png_name}-{par.getLabel()}.png",
+    #             dpi=300,bbox_inches='tight', 
+    #             pad_inches=0,
+    #             transparent=True)
+    # vs.plt.close(fig)
+
+fig2.canvas.draw()
+fig2.savefig(f"figs/双源分辨/{str(int(t))[5:]}-{par.getLabel()}-shells.png",
+            dpi=300,bbox_inches='tight', 
+            pad_inches=0,
+            # transparent=True
+            )
+vs.plt.close(fig2)
+
 print("Done.")

@@ -41,6 +41,7 @@ class Paras:
         self.dipoleRadiusRange = np.array([0,10e-2]) # 偶极子位置范围之径向范围。
         self.dipoleThetaRange = np.array([0,np.pi]) # 偶极子位置范围之极角范围。
         self.dipolePhiRange = np.array([0,np.pi*2]) # 偶极子位置范围之方位角范围。
+        self.dipoleRestrict = False # 若为 True, 则限定leadfield源的方向为 cross(z,r_p)
         # 探头阵列
         self.sensorType = "scalar" # 探头类型。可选 vector 或 scalar
         # self.gradio = False # if use gradiometer
@@ -345,7 +346,10 @@ class Solver:
             Q = np.array([np.dot(p,unit_y)])
         else:
             e1,e2,e3 = getSphericalUnitVector(rp)
-            Q = np.array([np.dot(p,e2),np.dot(p,e3)])
+            if self.paras.dipoleRestrict:
+                Q = np.array([np.dot(p,e2)])
+            else:
+                Q = np.array([np.dot(p,e2),np.dot(p,e3)])
         sensorPoints = self.sensorPoints + self.getSensorPointError()
         sensorOris = self.getSensorOri(sensorPoints,realGeoFields=True)
         L = self.getLeadField(rp.reshape((3,1)),sensorPoints=sensorPoints,sensorOris=sensorOris)
@@ -577,15 +581,18 @@ class Solver:
             e2[mask1,:] = unit_x.astype(np.float32,copy=False)
             e2[mask2,:] /= ne2[mask2][:,np.newaxis]
             # e2 = np.einsum("ijk,ij->ijk",e2,1/ne2)
-           
-            e3 = np.einsum("kmn,ijm,ijn->ijk",epsilon32,e1,e2)
-            ne3 = np.sqrt(np.einsum("ijk,ijk->ij",e3,e3))
-            e3 = np.einsum("ijk,ij->ijk",e3,1/ne3)
-            
+
             L2 = np.einsum("ijm,ijmn,ijn->ij",n,L3x3,e2)
-            L3 = np.einsum("ijm,ijmn,ijn->ij",n,L3x3,e3)
-            
-            L = np.hstack([L2,L3])
+            if not self.paras.dipoleRestrict:
+                e3 = np.einsum("kmn,ijm,ijn->ijk",epsilon32,e1,e2)
+                ne3 = np.sqrt(np.einsum("ijk,ijk->ij",e3,e3))
+                e3 = np.einsum("ijk,ij->ijk",e3,1/ne3)
+                
+                L3 = np.einsum("ijm,ijmn,ijn->ij",n,L3x3,e3)
+                
+                L = np.hstack([L2,L3])
+            else:
+                L = L2
 
         return L
 
@@ -624,6 +631,13 @@ class Solver:
     def applyInverse(self,Bm):
         Q = np.dot(self.W,Bm)
         return Q
+
+    def getQAmplitute(self,Q:np.ndarray):
+        if self.paras.dim==2:
+            return Q[:self.numOfSourcePoints]
+        if self.paras.dipoleRestrict:
+            return Q[:self.numOfSourcePoints]
+        return Q[:self.numOfSourcePoints]**2 + Q[self.numOfSourcePoints:]**2
 
     def evaluateLocRes(self,Q,rp):
         '''评估定位精度及弥散度。目前只针对单个偶极子使用。'''        
@@ -779,7 +793,7 @@ class Visualizer:
 
     def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30,vmin=None,alpha=0.8,cmap="Reds"):
         ps = solver.sourcePoints
-        Q1 = Q[:solver.numOfSourcePoints]**2 + Q[solver.numOfSourcePoints:]**2
+        Q1 = solver.getQAmplitute(Q)
         print(f"max amplitude of imaging result: {np.max(Q1)}")
         if not vmin:
             amplitude = Q1/np.max(Q1)
