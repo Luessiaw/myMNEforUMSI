@@ -68,7 +68,7 @@ def getMoment(p:Paras,sigma:float):
 # 源距离原点距离为 9 cm
 # rp_phis = np.array([-30,0])/180*np.pi
 # rp_theta = 45/180*np.pi
-phis = [-90,-75,-60,-45,-30]
+phis = [-60,-55,-50,-45,-40,-30]
 
 p = np.array([0,10e-9,0])
 # sources = [(rp1,p),(rp2,p)]
@@ -96,7 +96,7 @@ task = 3
 print(f"task {task}.")
 t = time.time()
 colors = ["red","blue","green"]
-fig2 = vs.plt.figure(figsize=(15,8))
+fig2 = vs.plt.figure(figsize=(20,8))
 for (k,par) in enumerate([paras3s,paras3v]):
     # rp,p = par.fixDipole
 
@@ -148,7 +148,7 @@ for (k,par) in enumerate([paras3s,paras3v]):
 
         for (j,phi) in enumerate(phis):
             rp_phis = np.array([phi,0])/180*np.pi
-            rp_theta = 45/180*np.pi
+            rp_theta = 60/180*np.pi
             rps = []
             ps = []
             strengths = [10,10]
@@ -184,17 +184,19 @@ for (k,par) in enumerate([paras3s,paras3v]):
             zss.append(zs)
             
             zs = zss[-1]
+            zs /= zs.max()
             
-            X,Y,Z = interpXYs(xs,ys,zs,50,50,[-0.1,0.1],[-0.1,0.1],"linear")
-            # ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k,projection="3d")
-            ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k)
-            # ax2.scatter(xs,ys,c=zs,cmap="Reds",s=15)
-            # ax2.tricontourf(xs,ys,zs,levels=14,cmap="Reds")
-            ax2.contourf(X, Y, Z, levels=30, cmap='Reds')
+            ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k,projection="3d")
+            # ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k)
+            ax2.scatter(xs,ys,zs,c=zs,cmap="Reds",s=15)
             ax2.set_title(f"phi = {-phi:.0f} ")
-            ax2.set_xlim([-0.1,0.1])
-            ax2.set_ylim([-0.1,0.1])
-            ax2.set_aspect("equal")
+            ax2.set_xlim([-0.12,0.12])
+            ax2.set_ylim([-0.12,0.12])
+            ax2.set_zlim([-0.01,1.01])
+            ax2.set_xticks([])
+            ax2.set_yticks([])
+            ax2.set_zticks([])
+            ax2.set_aspect("equalxy")
 
     #     vz.showHead(par.radiusOfHead,par.dim,ax,alpha=0.05)
     #     vz.showImagingResult(sol,Q,ax,10,alpha=1,cmap="Reds")
