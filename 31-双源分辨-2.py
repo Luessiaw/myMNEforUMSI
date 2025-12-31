@@ -184,10 +184,13 @@ for (k,par) in enumerate([paras3s,paras3v]):
             zss.append(zs)
             
             zs = zss[-1]
+            
+            X,Y,Z = interpXYs(xs,ys,zs,50,50,[-0.1,0.1],[-0.1,0.1],"linear")
             # ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k,projection="3d")
             ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k)
             # ax2.scatter(xs,ys,c=zs,cmap="Reds",s=15)
-            ax2.tricontourf(xs,ys,zs,levels=14,cmap="Reds")
+            # ax2.tricontourf(xs,ys,zs,levels=14,cmap="Reds")
+            ax2.contourf(X, Y, Z, levels=30, cmap='Reds')
             ax2.set_title(f"phi = {-phi:.0f} ")
             ax2.set_xlim([-0.1,0.1])
             ax2.set_ylim([-0.1,0.1])

@@ -2,6 +2,7 @@ import numpy as np
 import numpy.linalg as lin
 # from sklearn.cluster import KMeans
 from typing import List, Tuple
+from scipy.interpolate import griddata
 
 delta_tensor = lambda n:np.identity(n) # kronecker delta
 delta3 = delta_tensor(3)
@@ -273,3 +274,20 @@ def convex_hull(points: np.ndarray):
 
     # 合并（去掉首尾重复点）
     return lower[:-1] + upper[:-1]
+
+def interpXYs(xs,ys,vs,nx=50,ny=50,xlim=[0,1],ylim=[0,1],method="linear"):
+    '''给定不规则的散点 xs, ys 及其上的值 vs
+    返回：规则插值得到的 X, Y, V 网格'''
+    # 1. 构造规则网格
+    xg = np.linspace(*xlim, nx)
+    yg = np.linspace(*ylim, ny)
+    X, Y = np.meshgrid(xg, yg)
+
+    # 2. 插值
+    V = griddata(
+        points=(xs, ys),
+        values=vs,
+        xi=(X, Y),
+        method=method   # 'linear' / 'nearest' / 'cubic'
+    )
+    return X,Y,V
