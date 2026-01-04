@@ -634,9 +634,9 @@ class Solver:
 
     def getQAmplitute(self,Q:np.ndarray):
         if self.paras.dim==2:
-            return Q[:self.numOfSourcePoints]
+            return Q[:self.numOfSourcePoints]**2
         if self.paras.dipoleRestrict:
-            return Q[:self.numOfSourcePoints]
+            return Q[:self.numOfSourcePoints]**2
         return Q[:self.numOfSourcePoints]**2 + Q[self.numOfSourcePoints:]**2
 
     def evaluateLocRes(self,Q,rp):

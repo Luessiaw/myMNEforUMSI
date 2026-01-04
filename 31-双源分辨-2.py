@@ -1,4 +1,3 @@
-# 地磁场方向的误差
 # import matplotlib
 # matplotlib.use("Agg") # 避免多线程绘图问题
 from myMNE import *
@@ -68,14 +67,14 @@ def getMoment(p:Paras,sigma:float):
 # 源距离原点距离为 9 cm
 # rp_phis = np.array([-30,0])/180*np.pi
 # rp_theta = 45/180*np.pi
-phis = [-60,-55,-50,-45,-40,-30]
-
+phis = [-55,-50,-45,-40,-35]
+rp_theta = 45
 p = np.array([0,10e-9,0])
 # sources = [(rp1,p),(rp2,p)]
 
 # 格点间距为 3 或 4 mm 时可看出UMSI与SMSI的差距。
 paras.gridSpacing = 0.3e-2
-paras.sourceOnSpheres = (np.linspace(7,9,5,endpoint=True,dtype=np.float32)*1e-2).tolist()
+paras.sourceOnSpheres = (np.linspace(9-paras.gridSpacing*4,9,5,endpoint=True,dtype=np.float32)*1e-2).tolist()
 # paras.gridSpacing = 1e-2
 # paras.sourceOnSpheres = (np.linspace(7,9,3,endpoint=True)*1e-2).tolist()
 paras.externalNoise = 10e-15
@@ -91,8 +90,8 @@ paras3s.theta = 0
 paras3s.GeoFieldAtRef = 5e-5*(unit_x*np.sin(paras3s.theta)+unit_z*np.cos(paras3s.theta))
 
 task = 1
-task = 2
-task = 3
+# task = 2
+# task = 3
 print(f"task {task}.")
 t = time.time()
 colors = ["red","blue","green"]
@@ -100,16 +99,25 @@ fig2 = vs.plt.figure(figsize=(20,8))
 for (k,par) in enumerate([paras3s,paras3v]):
     # rp,p = par.fixDipole
 
-    # fig = vs.plt.figure()
-    # fig.set_size_inches(10,8)
-    # vz = Visualizer()
-
-    # # 绘制头部
-    # fig,ax = vz.create3DAxis(par.dim,fig=fig,lims=[0.15,0.15,0.15])
-    # ax.set_axis_off()
-
     if task == 1:
         # 绘制源
+        rp_phi = 30
+        for i,rp_phi in enumerate(rp_phis):
+            rp = np.array([np.sin(rp_thetaPi)*np.cos(rp_phi),
+                        np.sin(rp_thetaPi)*np.sin(rp_phi),
+                        np.cos(rp_thetaPi)])*9e-2
+            rps.append(rp)
+            p = np.cross(unit_z,rp)
+            p = strengths[i]*1e-9*p/np.linalg.norm(p)
+            ps.append(p)
+
+        fig = vs.plt.figure()
+        fig.set_size_inches(10,8)
+        vz = Visualizer()
+
+        fig,ax = vz.create3DAxis(par.dim,fig=fig,lims=[0.15,0.15,0.15])
+        ax.set_axis_off()
+
         vz.showHead(par.radiusOfHead,par.dim,ax,alpha=0.1)
         for i in range(len(rps)):
             vz.showSource(rps[i],ps[i],ax,par.dim,
@@ -148,14 +156,14 @@ for (k,par) in enumerate([paras3s,paras3v]):
 
         for (j,phi) in enumerate(phis):
             rp_phis = np.array([phi,0])/180*np.pi
-            rp_theta = 60/180*np.pi
+            rp_thetaPi = rp_theta/180*np.pi
             rps = []
             ps = []
             strengths = [10,10]
             for i,rp_phi in enumerate(rp_phis):
-                rp = np.array([np.sin(rp_theta)*np.cos(rp_phi),
-                            np.sin(rp_theta)*np.sin(rp_phi),
-                            np.cos(rp_theta)])*9e-2
+                rp = np.array([np.sin(rp_thetaPi)*np.cos(rp_phi),
+                            np.sin(rp_thetaPi)*np.sin(rp_phi),
+                            np.cos(rp_thetaPi)])*9e-2
                 rps.append(rp)
                 p = np.cross(unit_z,rp)
                 p = strengths[i]*1e-9*p/np.linalg.norm(p)
@@ -188,8 +196,10 @@ for (k,par) in enumerate([paras3s,paras3v]):
             
             ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k,projection="3d")
             # ax2 = fig2.add_subplot(2,len(phis),j+1+len(phis)*k)
+            ax2.view_init(elev=30, azim=-30)
             ax2.scatter(xs,ys,zs,c=zs,cmap="Reds",s=15)
-            ax2.set_title(f"phi = {-phi:.0f} ")
+            d = 8*np.sin(rp_theta/180*np.pi)*np.sin(-phi/180*np.pi/2)*2
+            ax2.set_title(f"D = {d:.1f} cm")
             ax2.set_xlim([-0.12,0.12])
             ax2.set_ylim([-0.12,0.12])
             ax2.set_zlim([-0.01,1.01])
@@ -211,7 +221,7 @@ for (k,par) in enumerate([paras3s,paras3v]):
     # vs.plt.close(fig)
 
 fig2.canvas.draw()
-fig2.savefig(f"figs/双源分辨/{str(int(t))[5:]}-{par.getLabel()}-shells.png",
+fig2.savefig(f"figs/双源分辨/{str(int(t))[5:]}-{par.getLabel()}-shells-{rp_theta}.png",
             dpi=300,bbox_inches='tight', 
             pad_inches=0,
             # transparent=True
