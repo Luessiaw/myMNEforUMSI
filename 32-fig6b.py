@@ -69,8 +69,8 @@ rp_phis = -np.array([2*np.arcsin(d/radius/2/np.sin(rp_theta)) for d in ds])
 
 # fig6a-2 对两个源进行源成像
 paras.gridSpacing = 0.3e-2
-paras.sourceOnSpheres = (np.linspace(7,9,5,endpoint=True,dtype=np.float32)*1e-2).tolist()
-# paras.sourceOnSpheres = [0.09]
+# paras.sourceOnSpheres = (np.linspace(7,9,5,endpoint=True,dtype=np.float32)*1e-2).tolist()
+paras.sourceOnSpheres = [0.09]
 paras.externalNoise = 10e-15
 paras.dipoleRestrict = True # 限定偶极子的方向
 paras2v,paras2s,paras3v,paras3s = paras.childParas(numOfChannelsForDim2=15,
@@ -132,7 +132,7 @@ for (k,par) in enumerate([paras3s,paras3v]):
         # cmap = vs.cm.Reds  # 选择颜色映射（如 'viridis', 'jet', 'plasma'）
         # colors = cmap(norm(V))
         # ax2.plot_surface(X,Y,V,facecolors=colors,edgecolor="none",shade=False)
-        ax2.scatter(xs,ys,QAm,c=QAm,cmap="Reds",s=250)
+        ax2.scatter(xs,ys,QAm,c=QAm,cmap="Reds",s=400)
         ax2.set(xlim=xlim,ylim=ylim,zlim=zlim)
 
         # ax2.grid(True, linewidth=5)
