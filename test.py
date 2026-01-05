@@ -4,7 +4,7 @@ import matplotlib as mpl
 fig, ax = plt.subplots(figsize=(0.6, 4))
 
 norm = mpl.colors.Normalize(vmin=0, vmax=1)
-cmap = mpl.cm.coolwarm
+cmap = mpl.cm.bwr
 
 sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
 sm.set_array([])  # 关键：避免警告
@@ -21,6 +21,6 @@ for spine in ax.spines.values():
 ax.set_yticks([])           # 冗余但安全
 ax.set_xticks([])
 
-fig.savefig("figs/腐化/cb-coolwarm.png")
+fig.savefig("figs/fig6c/cb-bwr.png")
 
 plt.show()
