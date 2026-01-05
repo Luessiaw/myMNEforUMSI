@@ -35,11 +35,13 @@ class Paras:
         self.radiusOfBrainShell = [] # 大脑球壳半径
         self.sourceOnSpheres = [] # 源位于几个球面上，元素为球面半径
         self.gridSpacing = 1e-2
+        self.sourcePoints = None
         # 源。如果出于调试等目的需要指定某个源，请在 runTrail 的部分修改。
         self.dipoleStrength = 10e-9 # 偶极子强度
         self.dipoleRadiusRange = np.array([0,10e-2]) # 偶极子位置范围之径向范围。
         self.dipoleThetaRange = np.array([0,np.pi]) # 偶极子位置范围之极角范围。
         self.dipolePhiRange = np.array([0,np.pi*2]) # 偶极子位置范围之方位角范围。
+        self.dipoleRestrict = False # 若为 True, 则限定leadfield源的方向为 cross(z,r_p)
         # 探头阵列
         self.sensorType = "scalar" # 探头类型。可选 vector 或 scalar
         # self.gradio = False # if use gradiometer
@@ -178,6 +180,8 @@ class Solver:
         self.trials = self.Trials(self.paras.numOfTrials,self.paras.numOfChannels)
 
     def getSourcePoints(self):
+        if not (self.paras.sourcePoints is None):
+            return self.paras.sourcePoints
         if self.paras.dim == 3:
             if self.paras.sourceOnSpheres:
                 points = []
@@ -342,7 +346,10 @@ class Solver:
             Q = np.array([np.dot(p,unit_y)])
         else:
             e1,e2,e3 = getSphericalUnitVector(rp)
-            Q = np.array([np.dot(p,e2),np.dot(p,e3)])
+            if self.paras.dipoleRestrict:
+                Q = np.array([np.dot(p,e2)])
+            else:
+                Q = np.array([np.dot(p,e2),np.dot(p,e3)])
         sensorPoints = self.sensorPoints + self.getSensorPointError()
         sensorOris = self.getSensorOri(sensorPoints,realGeoFields=True)
         L = self.getLeadField(rp.reshape((3,1)),sensorPoints=sensorPoints,sensorOris=sensorOris)
@@ -535,7 +542,11 @@ class Solver:
         rp = np.transpose(np.broadcast_to(sourcePoints,(numOfr,3,numOfrp)),(0,2,1))
         r = np.transpose(np.broadcast_to(sensorPoints,(numOfrp,3,numOfr)),(2,0,1))
         n = np.transpose(np.broadcast_to(sensorOris,(numOfrp,3,numOfr)),(2,0,1))
-                
+
+        rp = rp.astype(np.float32,copy=False)
+        r = r.astype(np.float32,copy=False)
+        n = n.astype(np.float32,copy=False)
+
         R = r - rp
         nr2 = np.einsum("ijk,ijk->ij",r,r)
         nr = np.sqrt(nr2)
@@ -545,11 +556,12 @@ class Solver:
         rdR = np.einsum("ijk,ijk->ij",r,R)
         
         F = nr*nR2 + nR*rdR
+        F = F.astype(np.float32,copy=False)
         nablaF = np.einsum("ij,ijk->ijk",nR2/nr+nR,r) + np.einsum("ij,ijk->ijk",rdR/nR+nR+2*nr,R)
-        
+        nablaF = nablaF.astype(np.float32,copy=False)
         epsilon32 = epsilon.astype(np.float32, copy=False)
-        M1 = np.einsum("ijk,mnk->ijmn",rp,epsilon32)
-        M2 = np.einsum("lnk,ijl,ijk,ijm->ijmn",epsilon32,r,rp,nablaF)
+        M1 = np.einsum("ijk,mnk->ijmn",rp.astype(np.float32),epsilon32)
+        M2 = np.einsum("lnk,ijl,ijk,ijm->ijmn",epsilon32,r.astype(np.float32),rp.astype(np.float32),nablaF)
         
         # L3x3 = k0*M1/F - k0*M2/F**2
         L3x31 = k0*np.einsum("ijmn,ij->ijmn",M1,1/F) 
@@ -560,24 +572,27 @@ class Solver:
             L = np.einsum("ijm,ijmn,n->ij",n,L3x3,unit_y)
         else:
             nrp2 = np.einsum("ijk,ijk->ij",rp,rp)
-            nrp = np.sqrt(nrp2)
+            nrp = np.sqrt(nrp2,dtype=np.float32)
             e1 = np.einsum("ijk,ij->ijk",rp,1/nrp)
-            e2 = np.einsum("kmn,m,ijn->ijk",epsilon,unit_z,e1)
-            ne2 = np.sqrt(np.einsum("ijk,ijk->ij",e2,e2))
+            e2 = np.einsum("kmn,m,ijn->ijk",epsilon32,unit_z.astype(np.float32,copy=False),e1)
+            ne2 = np.sqrt(np.einsum("ijk,ijk->ij",e2,e2),dtype=np.float32)
             mask1 = ne2<1e-5 # 处理 rp=unit_z的情况
             mask2 = ne2>=1e-5
-            e2[mask1,:] = unit_x
+            e2[mask1,:] = unit_x.astype(np.float32,copy=False)
             e2[mask2,:] /= ne2[mask2][:,np.newaxis]
             # e2 = np.einsum("ijk,ij->ijk",e2,1/ne2)
-           
-            e3 = np.einsum("kmn,ijm,ijn->ijk",epsilon,e1,e2)
-            ne3 = np.sqrt(np.einsum("ijk,ijk->ij",e3,e3))
-            e3 = np.einsum("ijk,ij->ijk",e3,1/ne3)
-            
+
             L2 = np.einsum("ijm,ijmn,ijn->ij",n,L3x3,e2)
-            L3 = np.einsum("ijm,ijmn,ijn->ij",n,L3x3,e3)
-            
-            L = np.hstack([L2,L3])
+            if not self.paras.dipoleRestrict:
+                e3 = np.einsum("kmn,ijm,ijn->ijk",epsilon32,e1,e2)
+                ne3 = np.sqrt(np.einsum("ijk,ijk->ij",e3,e3))
+                e3 = np.einsum("ijk,ij->ijk",e3,1/ne3)
+                
+                L3 = np.einsum("ijm,ijmn,ijn->ij",n,L3x3,e3)
+                
+                L = np.hstack([L2,L3])
+            else:
+                L = L2
 
         return L
 
@@ -616,6 +631,13 @@ class Solver:
     def applyInverse(self,Bm):
         Q = np.dot(self.W,Bm)
         return Q
+
+    def getQAmplitute(self,Q:np.ndarray):
+        if self.paras.dim==2:
+            return Q[:self.numOfSourcePoints]**2
+        if self.paras.dipoleRestrict:
+            return Q[:self.numOfSourcePoints]**2
+        return Q[:self.numOfSourcePoints]**2 + Q[self.numOfSourcePoints:]**2
 
     def evaluateLocRes(self,Q,rp):
         '''评估定位精度及弥散度。目前只针对单个偶极子使用。'''        
@@ -771,7 +793,7 @@ class Visualizer:
 
     def showImagingResult(self,solver:Solver,Q:np.ndarray,ax:vs.plt.Axes,scatterSize=30,vmin=None,alpha=0.8,cmap="Reds"):
         ps = solver.sourcePoints
-        Q1 = Q[:solver.numOfSourcePoints]**2 + Q[solver.numOfSourcePoints:]**2
+        Q1 = solver.getQAmplitute(Q)
         print(f"max amplitude of imaging result: {np.max(Q1)}")
         if not vmin:
             amplitude = Q1/np.max(Q1)
@@ -901,7 +923,7 @@ class Visualizer:
     def showSource(self,rp:np.ndarray,p:np.ndarray,ax:vs.plt.Axes,dim=3, 
         arrowBottomRadius=0.05, arrowTipRadius=0.1, 
         arrowBottomLength=0.5, arrowTipLength=0.1,
-        **kwargs):
+        color="red"):
         '''在源所在位置绘制一个箭头。'''
         n = p/np.linalg.norm(p) # 箭头的方向
         if dim == 2:
@@ -909,7 +931,10 @@ class Visualizer:
         if dim == 3:
             arrowBottom = rp - n*(arrowBottomLength+arrowTipLength)/2
             arrowTip = arrowBottom + n*(arrowBottomLength+arrowTipLength)
-            vs.draw_arrow(ax,arrowBottom,arrowTip,arrowBottomRadius,arrowTipRadius,arrowBottomLength,arrowTipLength)
+            vs.draw_arrow(ax,arrowBottom,arrowTip,
+                          arrowBottomRadius,arrowTipRadius,
+                          arrowBottomLength,arrowTipLength,
+                          color=color)
             # vs.plot3dArrow(rp,n,None,ax)
 
     def showHead(self,headRadius:float,dim=3,ax:vs.plt.Axes=None,alpha=0.1):
@@ -947,7 +972,15 @@ class Visualizer:
             return solver.getB(rp,p,r)
 
         vs.plotFunctionOnSphere(ax,f,radius=solver.paras.radiusOfSensorShell,vmin=vmin,vmax=vmax,num=num,alpha=alpha,printExtrim=printExtrim,cmap=cmap)
-        pass
+
+    def showMeasuredBForMultiDipoles(self,ax:vs.plt.Axes,solver:Solver,rps,ps,vmin,vmax,num=400,alpha=1,printExtrim=False,cmap="rainbow"):
+        def f(r):
+            B = 0
+            for i in range(len(rps)):
+                B += solver.getB(rps[i],ps[i],r)
+            return B
+
+        vs.plotFunctionOnSphere(ax,f,radius=solver.paras.radiusOfSensorShell,vmin=vmin,vmax=vmax,num=num,alpha=alpha,printExtrim=printExtrim,cmap=cmap)
 
 class VarContraller:
     def __init__(self,variableName,variableValues,variableFunc,baseParas:Paras,refreshMode=1):
