@@ -109,7 +109,14 @@ for (k,par) in enumerate(parass):
     rs = points[:,mask]
     
     K = sol.W @ sol.L
-    widths = get_eff_width(points,K)
+    if par.dipoleRestrict:
+        points2 = points
+    else:
+        points2 = np.hstack([points,points])
+    widths = get_eff_width(points2,K)
+    if not par.dipoleRestrict:
+        n = widths.size//2
+        widths = np.sqrt(widths[:n]**2+widths[n:]**2)
     widths = widths[mask]
     if k:
         print(f"theta = {geo_thetas[k-1]}.", end=" ")
@@ -142,7 +149,7 @@ for (k,par) in enumerate(parass):
         pre = f"-{geo_thetas[k-1]}"
     else:
         pre = ""
-    fig2.savefig(f"figs/fig6c/6c-{par.getLabel()}{pre}.png",
+    fig2.savefig(f"figs/fig6c/notRestict-6c-{par.getLabel()}{pre}.png",
                 dpi=300,bbox_inches='tight',pad_inches=0)
     vs.plt.close(fig2)
 
