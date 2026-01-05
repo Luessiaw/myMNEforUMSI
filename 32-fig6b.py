@@ -72,7 +72,7 @@ paras.gridSpacing = 0.3e-2
 # paras.sourceOnSpheres = (np.linspace(7,9,5,endpoint=True,dtype=np.float32)*1e-2).tolist()
 paras.sourceOnSpheres = [0.09]
 paras.externalNoise = 10e-15
-paras.dipoleRestrict = True # 限定偶极子的方向
+# paras.dipoleRestrict = True # 限定偶极子的方向
 paras2v,paras2s,paras3v,paras3s = paras.childParas(numOfChannelsForDim2=15,
                                 numOfChannelsForDim3=128)
 paras3v.theta = 0
@@ -143,7 +143,7 @@ for (k,par) in enumerate([paras3s,paras3v]):
         ax2.set_aspect("equalxy")
 
         fig2.canvas.draw()
-        fig2.savefig(f"figs/fig6b/6b-{par.getLabel()}-{d:.1f}cm.png",
+        fig2.savefig(f"figs/fig6b/notRestrict-6b-{par.getLabel()}-{d:.1f}cm.png",
                     dpi=300,bbox_inches='tight',pad_inches=0)
         vs.plt.close(fig2)
 
